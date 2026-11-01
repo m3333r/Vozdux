@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vozdux</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1E1A17;
+    --paper: #F6EEDB;
+    --cream: #EFE3C8;
+    --cream-dark: #D8C7A0;
+    --dusk: #2B3A4A;
+    --dusk-deep: #1F2A36;
+    --concrete: #6F7478;
+    --teal: #4FA89A;
+    --amber: #F2A23A;
+    --alarm: #D0453A;
+    --warm: #F2C14E;
+    --muted: #5E5444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--dusk-deep);
+    color: var(--ink);
+    font-family: 'Manrope', system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--dusk);
+  }
+  .display { font-family: 'Pixelify Sans', system-ui, sans-serif; }
+
+  .panel {
+    background: var(--cream);
+    border: 3px solid var(--ink);
+    box-shadow: 0 4px 0 var(--ink), inset -3px -3px 0 var(--cream-dark);
+    padding: 10px 12px;
+  }
+  .hud { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .brand { font-family: 'Pixelify Sans', sans-serif; font-size: 20px; font-weight: 700; color: var(--alarm); cursor: default; }
+  .hud-right { display: flex; align-items: center; gap: 10px; text-align: right; }
+  .tokens { font-family: 'Pixelify Sans', sans-serif; font-size: 26px; font-weight: 700; line-height: 1; }
+  .tokens small { font-family: 'Manrope', sans-serif; font-size: 12px; color: var(--muted); font-weight: 700; }
+  .income { font-size: 12px; color: var(--muted); font-weight: 700; margin-top: 3px; }
+
+  .key {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--teal);
+    border: 3px solid var(--ink);
+    box-shadow: 0 4px 0 var(--ink), inset 0 3px 0 rgba(255, 255, 255, 0.35);
+    padding: 8px 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .key:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink), inset 0 2px 0 rgba(255,255,255,0.35); }
+  .key:disabled { background: var(--concrete); color: #E8E2D2; cursor: not-allowed; transform: none; box-shadow: 0 4px 0 var(--ink); }
+  .key.gear { width: 46px; height: 46px; font-size: 20px; padding: 0; background: var(--paper); }
+  .key.big {
+    width: 100%;
+    height: 84px;
+    font-family: 'Pixelify Sans', sans-serif;
+    font-size: 28px;
+    background: var(--amber);
+    box-shadow: 0 6px 0 var(--ink), inset 0 3px 0 rgba(255,255,255,0.35);
+  }
+  .key.big:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
+  .key.back { align-self: flex-start; background: var(--paper); }
+
+  #screens { flex: 1; min-height: 0; position: relative; }
+  .screen { display: none; position: relative; height: 100%; overflow-y: auto; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+  .screen.active { display: flex; }
+
+  .frame { border: 3px solid var(--ink); background: #000; }
+  .frame canvas, .thumb {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+  }
+  .thumb { border: 3px solid var(--ink); background: #000; }
+  .mini { width: 48px; height: 72px; image-rendering: pixelated; border: 2px solid var(--ink); background: var(--paper); }
+  #chart.shake { animation: shake 0.3s steps(6); }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .hint { font-size: 14px; color: var(--muted); text-align: center; font-weight: 700; }
+  #s-trade .key.big { margin-top: auto; }
+
+  .float {
+    position: absolute;
+    left: 50%;
+    bottom: 110px;
+    transform: translateX(-50%);
+    font-family: 'Pixelify Sans', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--cream);
+    text-shadow: 2px 2px 0 var(--ink);
+    pointer-events: none;
+    animation: rise 0.8s steps(8) forwards;
+  }
+  .float.gain { color: var(--teal); }
+  .float.loss { color: var(--alarm); }
+  @keyframes rise { to { transform: translate(-50%, -48px); opacity: 0; } }
+
+  .section-title { font-family: 'Pixelify Sans', sans-serif; font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .card {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    box-shadow: 0 3px 0 var(--ink);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card-title { font-size: 16px; font-weight: 800; }
+  .card-sub { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row .key { flex: 1 1 auto; }
+  .list { display: flex; flex-direction: column; gap: 10px; }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile {
+    font-family: 'Pixelify Sans', sans-serif;
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    box-shadow: 0 4px 0 var(--ink);
+    padding: 18px 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .tile:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+
+  .log { list-style: none; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; gap: 5px; max-height: 150px; overflow-y: auto; }
+  .log li { padding: 5px 8px; background: var(--paper); border-left: 4px solid var(--teal); }
+
+  .modal {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 6, 18, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    z-index: 10;
+  }
+  .modal.hidden { display: none; }
+  .modal-box {
+    width: 100%;
+    max-width: 380px;
+    max-height: 100%;
+    overflow-y: auto;
+    background: var(--cream);
+    border: 3px solid var(--ink);
+    box-shadow: 0 6px 0 var(--ink), inset -3px -3px 0 var(--cream-dark);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .modal-box .key { width: 100%; }
+  .event-text { font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .bubble {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    padding: 10px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .input {
+    font-family: inherit;
+    font-size: 18px;
+    padding: 10px;
+    border: 3px solid var(--ink);
+    background: var(--paper);
+    width: 100%;
+  }
+  #maze {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 3px solid var(--ink);
+    image-rendering: pixelated;
+    background: var(--cream);
+  }
+  .timer { font-family: 'Pixelify Sans', sans-serif; font-size: 22px; font-weight: 700; text-align: center; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .dpad .key { padding: 12px 0; font-size: 20px; }
+  .dpad span { display: block; }
+
+  .toast {
+    position: absolute;
+    left: 50%;
+    top: 14px;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 92%;
+    background: var(--ink);
+    color: var(--cream);
+    border: 2px solid var(--warm);
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    text-align: center;
+    z-index: 20;
+  }
+  .toast.show { opacity: 1; }
+  .frame { position: relative; overflow: hidden; }
+  .frame canvas { filter: saturate(1.15) contrast(1.06); }
+  .frame::before, .frame::after { content: ''; position: absolute; left: 0; right: 0; height: 26%; pointer-events: none; -webkit-backdrop-filter: blur(2.2px); backdrop-filter: blur(2.2px); }
+  .frame::before { top: 0; -webkit-mask-image: linear-gradient(#000, transparent); mask-image: linear-gradient(#000, transparent); }
+  .frame::after { bottom: 0; -webkit-mask-image: linear-gradient(transparent, #000); mask-image: linear-gradient(transparent, #000); }
+  .frame.nofx::before, .frame.nofx::after { display: none; }
+  .swatch { width: 34px; height: 34px; border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); cursor: pointer; }
+  .swatch:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="panel hud">
+    <div class="brand" id="logo">Vozdux</div>
+    <div class="hud-right">
+      <div>
+        <div class="tokens"><span id="tokens">0</span> <small>токенов</small></div>
+        <div class="income" id="income"></div>
+      </div>
+      <button class="key gear" data-act="settings" aria-label="Настройки">⚙</button>
+    </div>
+  </header>
+
+  <main id="screens">
+    <section class="screen active" id="s-lobby">
+      <div class="frame"><canvas data-scene="lobby" width="160" height="120"></canvas></div>
+      <div class="tiles">
+        <button class="tile" data-go="work">Работы</button>
+        <button class="tile" data-go="factories">Заводы</button>
+        <button class="tile" data-go="shop">Магазин</button>
+        <button class="tile" data-go="garage">Гараж</button>
+        <button class="tile" data-act="rewards">Награды</button>
+        <button class="tile" data-act="prestige">Престиж</button>
+      </div>
+      <div class="panel">
+        <div class="section-title">Журнал</div>
+        <ul class="log" id="log"></ul>
+      </div>
+    </section>
+
+    <section class="screen" id="s-trade">
+      <button class="key back" data-go="lobby">← В лобби</button>
+      <div class="frame nofx"><canvas id="chart" data-scene="chart" width="120" height="72"></canvas></div>
+      <p class="panel hint">Покупай на зелёном. На красном заплатишь 3 токена.</p>
+      <button class="key big" id="buy">Buy</button>
+    </section>
+
+    <section class="screen" id="s-work">
+      <button class="key back" data-go="lobby">← В лобби</button>
+      <div class="section-title">Работы</div>
+      <div class="card"><div class="card-title">Трейдинг</div><div class="card-sub">Жми Buy на зелёном, на красном платишь 3 токена.</div><div class="row"><button class="key" data-go="trade">Работать</button></div></div>
+      <div class="card"><div class="card-title">Бармен</div><div class="card-sub">Налей клиенту то, что он просит. Чаевые 12–24 токена.</div><div class="row"><button class="key" data-go="bar">Работать</button></div></div>
+      <div class="card"><div class="card-title">Курьер</div><div class="card-sub">Довези заказ до дома по лабиринту. Платят 50–130 токенов.</div><div class="row"><button class="key" data-act="courier">Взять заказ</button></div></div>
+    </section>
+
+    <section class="screen" id="s-bar">
+      <button class="key back" data-go="work">← К работам</button>
+      <div class="frame"><canvas data-scene="bar" width="320" height="180"></canvas></div>
+      <p class="panel hint" id="barHint">Жди клиента</p>
+      <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+        <button class="key" data-act="drink" data-id="whisky">Виски</button>
+        <button class="key" data-act="drink" data-id="tequila">Текила</button>
+        <button class="key" data-act="drink" data-id="beer">Пиво</button>
+      </div>
+    </section>
+
+    <section class="screen" id="s-factories">
+      <button class="key back" data-go="lobby">← В лобби</button>
+      <div class="section-title">Заводы</div>
+      <div class="list" id="factoryList"></div>
+      <div class="section-title">Защита</div>
+      <div class="list" id="guardList"></div>
+    </section>
+
+    <section class="screen" id="s-shop">
+      <button class="key back" data-go="lobby">← В лобби</button>
+      <div class="section-title">Дома</div>
+      <div class="list" id="houseList"></div>
+      <div class="section-title">Одежда</div>
+      <div class="list" id="clothesList"></div>
+      <div class="section-title">Машины</div>
+      <div class="list" id="carList"></div>
+    </section>
+
+    <section class="screen" id="s-garage">
+      <button class="key back" data-go="lobby">← В лобби</button>
+      <div class="section-title">Гараж</div>
+      <div class="frame"><canvas data-scene="garage" width="160" height="90"></canvas></div>
+      <p class="hint" id="garageCaption"></p>
+      <div class="list" id="garageCars"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <div id="modal" class="modal hidden"><div class="modal-box" id="modalBox"></div></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- Настройки ----------
+const CONFIG = {
+  tapGain: 1,
+  bearPenalty: 3,
+  bullSeconds: [7, 14],
+  bearSeconds: [5, 10],
+  candleEveryMs: 600,
+  offlineCapHours: 12,
+  saveEveryMs: 5000,
+  attackCheckMs: 30000,
+  attackMinH: 24,
+  attackMaxH: 48,
+  storageKey: 'vozdux_save_v1',
+  factoryBase: 50000,
+  factoryGrowth: 1.15,
+  factoryIncomeBase: 600,
+  workerBonus: 200,
+  maxWorkers: 2,
+  workerCost: 10000,
+  managerCost: 25000,
+  managerIncome: 1500,
+  directorCost: 60000,
+  directorIncome: 2000,
+  raidLootShare: 0.05,
+  raidRecover: 0.5,
+  mazeSeconds: 30,
+  taxShare: 0.05,
+  taxMin: 500,
+  testPassword: 'admin33',
+  testTaps: 5,
+};
+
+// ---------- Данные ----------
+const FACTORY_TYPES = [
+  { id: 'concrete', name: 'Бетонный завод', color: '#8E887C', box: '#C9B27C' },
+  { id: 'milk', name: 'Молочный завод', color: '#7C90A4', box: '#F6F1E4' },
+  { id: 'wine', name: 'Винный завод', color: '#6B3446', box: '#5A1E2A' },
+  { id: 'weapon', name: 'Оружейный завод', color: '#4B5640', box: '#3E4A2E' },
+];
+
+const CLOTHES = [
+  { id: 'tracksuit', name: 'Серый спортивный костюм', price: 0, top: '#7A7F86', bottom: '#7A7F86', shoes: '#1E1E1E' },
+  { id: 'robe', name: 'Чёрный домашний халат', price: 2000, top: '#1E1E24', bottom: '#1E1E24', shoes: '#C9CFD6' },
+  { id: 'beach', name: 'Пляжная футболка, шорты и тапочки', price: 2000, top: '#4FA89A', bottom: '#F2EEE3', shoes: '#8FB8C4' },
+  { id: 'cj', name: 'CJ: белая майка и синие джинсы', price: 3000, top: '#F2EEE3', bottom: '#2E4A7A', shoes: '#F2EEE3' },
+  { id: 'classic', name: 'Классический костюм', price: 3000, top: '#2E3440', bottom: '#2E3440', shoes: '#1E1E1E' },
+  { id: 'leather', name: 'Кожанка с джинсами', price: 4000, top: '#5A3A2A', bottom: '#2E3A4A', shoes: '#1E1E1E' },
+  { id: 'military', name: 'Военная одежда', price: 4000, top: '#5C6B3E', bottom: '#5C6B3E', shoes: '#1E1E1E' },
+  { id: 'gold', name: 'Чёрно-золотой спортивный костюм', price: 5000, top: '#1E1E1E', bottom: '#1E1E1E', shoes: '#1E1E1E', stripe: '#E0B040' },
+];
+
+const HOUSES = [
+  { id: 'studio', name: 'Студия в новостройке', price: 24000, carSlots: 1, wall: '#4A5A6B', floor: '#3A4654' },
+  { id: 'loft', name: 'Лофт в центре', price: 50000, carSlots: 2, wall: '#5B4A6B', floor: '#4A3B57' },
+  { id: 'town', name: 'Таунхаус', price: 75000, carSlots: 3, wall: '#6B5A3A', floor: '#544530' },
+  { id: 'villa', name: 'Вилла с бассейном', price: 100000, carSlots: 4, wall: '#3F6B5A', floor: '#335748' },
+];
+
+const CARS = [
+  { id: 'range', name: 'Лорд Ровер', price: 30000, body: '#2E3A46', style: 'suv' },
+  { id: 'benz', name: 'Бенц Эс', price: 40000, body: '#C9CFD6', style: 'sedan' },
+  { id: 'm5', name: 'Эм-Пауэр М5', price: 40000, body: '#1E4A7A', style: 'sport' },
+  { id: 'royce', name: 'Королевский Ройс', price: 50000, body: '#EDE7D9', style: 'lux' },
+];
+
+const EMP_WEIGHTS = { worker: 40, manager: 35, director: 25 };
+const EMP_NAME = { worker: 'работника', manager: 'менеджера', director: 'директора' };
+
+// ---------- Состояние ----------
+const TG = window.Telegram && window.Telegram.WebApp;
+if (TG) { TG.ready(); TG.expand(); }
+
+const state = {
+  tokens: 0,
+  factories: [],
+  houseId: null,
+  cars: [],
+  clothes: ['tracksuit'],
+  worn: 'tracksuit',
+  savedAt: Date.now(),
+  nextAttackAt: 0,
+  log: [],
+  settings: { sound: true, vibe: true },
+};
+
+const rand = (min, max) => min + Math.random() * (max - min);
+const fmt = n => Math.floor(n).toLocaleString('ru-RU');
+const findFactory = id => state.factories.find(f => f.typeId === id);
+const factoryName = id => FACTORY_TYPES.find(t => t.id === id).name;
+const currentHouse = () => HOUSES.find(h => h.id === state.houseId) || null;
+const wornOutfit = () => CLOTHES.find(c => c.id === state.worn) || CLOTHES[0];
+const employeeCount = () => state.factories.reduce((s, f) => s + f.workers + (f.top ? 1 : 0), 0);
+
+function factoryIncome(f) {
+  if (f.top === 'director') return CONFIG.directorIncome;
+  if (f.top === 'manager') return CONFIG.managerIncome;
+  return CONFIG.factoryIncomeBase + CONFIG.workerBonus * f.workers;
+}
+function incomePerHour() {
+  return state.factories.reduce((sum, f) => sum + factoryIncome(f), 0);
+}
+function nextFactoryPrice() {
+  return Math.round(CONFIG.factoryBase * Math.pow(CONFIG.factoryGrowth, state.factories.length));
+}
+
+// ---------- Сохранение: облако Telegram, при сбое localStorage ----------
+function readLocal() {
+  try { return localStorage.getItem(CONFIG.storageKey); } catch (e) { return null; }
+}
+function writeLocal(value) {
+  try { localStorage.setItem(CONFIG.storageKey, value); } catch (e) { /* молча */ }
+}
+function loadSave() {
+  return new Promise(resolve => {
+    const fallback = () => resolve(readLocal());
+    if (TG && TG.CloudStorage) {
+      TG.CloudStorage.getItem(CONFIG.storageKey, (err, value) => {
+        if (err || !value) fallback(); else resolve(value);
+      });
+    } else {
+      fallback();
+    }
+  });
+}
+function writeSave() {
+  const data = JSON.stringify({
+    tokens: state.tokens,
+    factories: state.factories,
+    houseId: state.houseId,
+    cars: state.cars,
+    clothes: state.clothes,
+    worn: state.worn,
+    savedAt: Date.now(),
+    nextAttackAt: state.nextAttackAt,
+    log: state.log,
+    settings: state.settings,
+    x: state.x,
+  });
+  writeLocal(data);
+  if (TG && TG.CloudStorage) TG.CloudStorage.setItem(CONFIG.storageKey, data, () => {});
+}
+function applySaved(s) {
+  state.tokens = Number(s.tokens) || 0;
+  state.factories = Array.isArray(s.factories) ? s.factories : [];
+  state.houseId = s.houseId || null;
+  state.cars = Array.isArray(s.cars) ? s.cars : [];
+  state.clothes = Array.isArray(s.clothes) && s.clothes.length ? s.clothes : ['tracksuit'];
+  state.worn = s.worn || 'tracksuit';
+  state.savedAt = Number(s.savedAt) || Date.now();
+  state.nextAttackAt = Number(s.nextAttackAt) || 0;
+  state.log = Array.isArray(s.log) ? s.log : [];
+  if (s.settings) state.settings = { sound: s.settings.sound !== false, vibe: s.settings.vibe !== false };
+  if (s.x) state.x = Object.assign(JSON.parse(JSON.stringify(X0)), s.x);
+}
+
+// ---------- Офлайн-доход ----------
+function applyOffline() {
+  const hours = Math.max(0, (Date.now() - state.savedAt) / 3600000);
+  const income = incomePerHour();
+  const earned = Math.floor(income * Math.min(hours, CONFIG.offlineCapHours));
+  state.tokens += earned;
+  if (income > 0 && hours >= CONFIG.offlineCapHours) {
+    addLog('Доход остановлен: тебя не было больше 12 часов');
+  } else if (earned > 0) {
+    addLog(`Пока тебя не было: +${fmt(earned)} токенов`);
+  }
+  return hours;
+}
+
+// ---------- Журнал, звук, вибрация, тосты ----------
+function addLog(text) {
+  state.log.unshift({ text, t: Date.now() });
+  state.log = state.log.slice(0, 8);
+}
+
+let audioCtx = null;
+function sfx(kind) {
+  if (!state.settings.sound) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const tones = {
+      buy: [660, 0.08, 'square'],
+      gain: [880, 0.05, 'square'],
+      loss: [160, 0.2, 'sawtooth'],
+      coin: [1320, 0.08, 'triangle'],
+      alarm: [220, 0.4, 'sawtooth'],
+      ok: [520, 0.1, 'triangle'],
+    };
+    const [freq, dur, type] = tones[kind] || tones.ok;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.value = 0.04;
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.stop(audioCtx.currentTime + dur);
+  } catch (e) { /* звук недоступен */ }
+}
+
+function haptic(kind) {
+  if (!state.settings.vibe || !TG || !TG.HapticFeedback) return;
+  if (kind === 'error') TG.HapticFeedback.notificationOccurred('error');
+  else TG.HapticFeedback.impactOccurred('light');
+}
+
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function showToast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+
+function spend(amount) {
+  if (state.tokens < amount) {
+    showToast(`Не хватает ${fmt(amount - state.tokens)} токенов`);
+    return false;
+  }
+  state.tokens -= amount;
+  return true;
+}
+
+// ---------- Трейдинг ----------
+const SERIES_MAX = 24;
+const trend = { phase: 'bull', timeLeft: 0, price: 100, series: [] };
+
+function startPhase(phase) {
+  trend.phase = phase;
+  trend.timeLeft = phase === 'bull'
+    ? rand(CONFIG.bullSeconds[0], CONFIG.bullSeconds[1])
+    : rand(CONFIG.bearSeconds[0], CONFIG.bearSeconds[1]);
+}
+
+function addCandle() {
+  const prev = trend.series.length ? trend.series[trend.series.length - 1].close : trend.price;
+  const drift = (trend.phase === 'bull' ? 1 : -1) * rand(0.5, 2.5);
+  const close = Math.max(10, prev + drift + rand(-1.5, 1.5));
+  trend.series.push({ open: prev, close, phase: trend.phase });
+  if (trend.series.length > SERIES_MAX) trend.series.shift();
+}
+
+// ---------- Модалки ----------
+const modalEl = document.getElementById('modal');
+const modalBox = document.getElementById('modalBox');
+let attackOpen = false;
+
+function openModal(html) {
+  modalBox.innerHTML = html;
+  modalEl.classList.remove('hidden');
+}
+function closeModal() {
+  modalEl.classList.add('hidden');
+  modalBox.innerHTML = '';
+  attackOpen = false;
+}
+function openEvent(title, text) {
+  openModal(`<div class="section-title">${title}</div>
+    <div class="event-text">${text}</div>
+    <button class="key" data-act="close">Понятно</button>`);
+}
+
+// ---------- Рисование (детальный пиксель) ----------
+const R = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+const hx = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const p = hx(a), q = hx(b); return '#' + p.map((v, i) => Math.round(v + (q[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+const lt = (c, t = 0.3) => mix(c, '#FFF1D0', t);
+const dk = (c, t = 0.35) => mix(c, '#171026', t);
+
+// Объёмный блок: контур, свет сверху-слева, тень снизу-справа
+function B(c, x, y, w, h, col, ol = true) {
+  if (ol) R(c, x - 1, y - 1, w + 2, h + 2, dk(col, 0.72));
+  R(c, x, y, w, h, col);
+  R(c, x, y, w, 1, lt(col)); R(c, x, y, 1, h, lt(col, 0.12));
+  R(c, x, y + h - 1, w, 1, dk(col, 0.3)); R(c, x + w - 1, y, 1, h, dk(col, 0.2));
+}
+const LIGHTS = [];
+function glow(c, x, y, r, col, a = 0.35) { LIGHTS.push([x, y, r, col, a]); }
+function dith(c, x, y, w, h, col) {
+  c.fillStyle = col;
+  for (let j = 0; j < h; j++) for (let i = j & 1; i < w; i += 2) c.fillRect(x + i, y + j, 1, 1);
+}
+function sky(c, x, y, w, h, a, b) {
+  const g = c.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, a); g.addColorStop(1, b); c.fillStyle = g; c.fillRect(x, y, w, h);
+}
+
+// ---------- Город (общий для графика и окон) ----------
+let seed = 42;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+function makeCity(w, minH, maxH, wmin, wmax) {
+  const out = [];
+  for (let x = 0; x < w;) {
+    const bw = wmin + Math.floor(rnd() * (wmax - wmin)), bh = minH + Math.floor(rnd() * (maxH - minH));
+    const wins = [];
+    for (let wy = 4; wy < bh - 3; wy += 5) for (let wx = 3; wx < bw - 3; wx += 4) wins.push([wx, wy, rnd() < 0.45, Math.floor(rnd() * 9)]);
+    out.push({ x, w: bw, h: bh, wins });
+    x += bw + 1;
+  }
+  return out;
+}
+const cityBack = makeCity(240, 40, 78, 12, 22);
+const cityFront = makeCity(240, 26, 58, 10, 18);
+const LIT = ['#F2C14E', '#FFD88A', '#7FC4D8', '#F6EEDB'];
+function drawCity(c, list, baseY, col, t, dim) {
+  for (const b of list) {
+    B(c, b.x, baseY - b.h, b.w, b.h, col, false);
+    for (const [wx, wy, on, k] of b.wins) {
+      if (on && (Math.floor(t * 0.6) + k) % 11 !== 0) R(c, b.x + wx, baseY - b.h + wy, 2, 3, dim ? dk(LIT[k % 4], 0.35) : LIT[k % 4]);
+    }
+  }
+}
+
+// ---------- График ----------
+function drawChart(c, t) {
+  const W = 240, H = 144;
+  sky(c, 0, 0, W, H, '#141B38', '#3A3260');
+  for (let i = 0; i < 28; i++) R(c, (i * 53) % W, (i * 29) % 62, 1, 1, (i + Math.floor(t * 2)) % 7 === 0 ? '#FFFFFF' : '#8A86B8');
+  R(c, 196, 10, 12, 12, '#F6EEDB'); R(c, 201, 9, 10, 12, '#1A2144');
+  drawCity(c, cityBack, H, '#1C2444', t, true);
+  drawCity(c, cityFront, H, '#262F58', t, false);
+  R(c, 0, 0, W, H, 'rgba(20,16,40,0.62)');
+  for (let y = 24; y < H; y += 24) R(c, 0, y, W, 1, 'rgba(246,238,219,0.08)');
+  const s = trend.series;
+  if (!s.length) return;
+  const vals = s.flatMap(k => [k.open, k.close]);
+  const lo = Math.min(...vals), span = Math.max(1, Math.max(...vals) - lo);
+  const yOf = p => Math.round(H - 16 - ((p - lo) / span) * (H - 40));
+  const off = 24 - s.length;
+  s.forEach((k, i) => {
+    const x = (off + i) * 10 + 2, top = yOf(Math.max(k.open, k.close)), bot = yOf(Math.min(k.open, k.close));
+    const h = Math.max(4, bot - top), col = k.phase === 'bull' ? '#4FA89A' : '#D0453A';
+    R(c, x + 2, top - 4, 2, h + 8, dk(col, 0.4));
+    B(c, x, top, 6, h, col);
+    if (i === s.length - 1) glow(c, x + 3, top + h / 2, 26, col, 0.5);
+  });
+  const bull = trend.phase === 'bull', ac = bull ? '#4FA89A' : '#D0453A';
+  if (bull) { for (let r = 0; r < 5; r++) R(c, 16 - r, 8 + r, r * 2 + 1, 1, ac); R(c, 14, 13, 5, 7, ac); }
+  else { for (let r = 0; r < 5; r++) R(c, 12 + r, 15 + r, 9 - r * 2, 1, ac); R(c, 14, 8, 5, 7, ac); }
+  c.globalAlpha = 0.55; c.strokeStyle = ac; c.lineWidth = 2; c.strokeRect(1, 1, W - 2, H - 2); c.globalAlpha = 1;
+}
+
+// ---------- Персонаж 32×48 ----------
+function drawCharacter(c, o, x, y, t = 0) {
+  const bob = Math.round(Math.sin(t * 2.2) * 0.6 + 0.4) & 1, by = y + bob;
+  const skin = '#E7B48B', hair = '#3A2618', id = o.id;
+  const short = id === 'beach', sleeve = id === 'beach' ? 6 : id === 'cj' ? 2 : 13;
+  R(c, x + 4, y + 45, 24, 3, 'rgba(10,6,24,0.3)');
+  B(c, x + 10, by + 34, 6, short ? 6 : 11, o.bottom); B(c, x + 16, by + 34, 6, short ? 6 : 11, o.bottom);
+  if (short) { B(c, x + 10, by + 40, 6, 4, skin, false); B(c, x + 16, by + 40, 6, 4, skin, false); }
+  B(c, x + 9, y + 44, 8, 3, o.shoes); B(c, x + 16, y + 44, 8, 3, o.shoes);
+  if (id === 'leather') { R(c, x + 9, y + 46, 8, 1, '#F6EEDB'); R(c, x + 16, y + 46, 8, 1, '#F6EEDB'); }
+  B(c, x + 9, by + 20, 14, 15, o.top);
+  for (const ax of [x + 5, x + 23]) {
+    B(c, ax, by + 21, 4, sleeve, o.top);
+    if (sleeve < 13) B(c, ax, by + 21 + sleeve, 4, 13 - sleeve, skin, false);
+    B(c, ax, by + 33, 4, 3, skin, false);
+  }
+  R(c, x + 14, by + 17, 4, 3, dk(skin, 0.12));
+  R(c, x + 9, by + 6, 2, 8, dk(skin, 0.1)); R(c, x + 21, by + 6, 2, 8, dk(skin, 0.1));
+  B(c, x + 10, by + 5, 12, 14, skin);
+  R(c, x + 10, by + 4, 12, 5, hair); R(c, x + 9, by + 5, 2, 8, hair); R(c, x + 21, by + 5, 2, 8, hair);
+  R(c, x + 12, by + 4, 6, 1, lt(hair, 0.28));
+  const blink = Math.floor(t * 10) % 38 === 0;
+  if (blink) { R(c, x + 13, by + 12, 2, 1, '#1E1A17'); R(c, x + 18, by + 12, 2, 1, '#1E1A17'); }
+  else { R(c, x + 13, by + 11, 2, 3, '#1E1A17'); R(c, x + 18, by + 11, 2, 3, '#1E1A17'); R(c, x + 13, by + 11, 1, 1, '#F6EEDB'); R(c, x + 18, by + 11, 1, 1, '#F6EEDB'); }
+  R(c, x + 16, by + 14, 1, 2, dk(skin, 0.22)); R(c, x + 14, by + 17, 4, 1, '#9A5A4A');
+  const st = o.stripe;
+  if (id === 'tracksuit') { R(c, x + 15, by + 20, 2, 15, dk(o.top, 0.3)); R(c, x + 5, by + 21, 1, 13, lt(o.top, 0.35)); R(c, x + 26, by + 21, 1, 13, lt(o.top, 0.35)); R(c, x + 10, by + 34, 1, 11, lt(o.top, 0.35)); R(c, x + 21, by + 34, 1, 11, lt(o.top, 0.35)); }
+  if (id === 'beach') { R(c, x + 12, by + 24, 3, 3, '#F2C14E'); R(c, x + 18, by + 26, 3, 3, '#D0453A'); R(c, x + 14, by + 30, 3, 2, '#F6EEDB'); }
+  if (id === 'robe') { B(c, x + 9, by + 29, 14, 15, o.top); R(c, x + 9, by + 27, 14, 2, '#6B6F76'); R(c, x + 13, by + 20, 1, 8, lt(o.top, 0.3)); R(c, x + 18, by + 20, 1, 8, lt(o.top, 0.3)); }
+  if (id === 'cj') { R(c, x + 13, by + 20, 6, 2, skin); R(c, x + 9, by + 34, 14, 1, '#1E3050'); R(c, x + 9, y + 46, 8, 1, '#8A8478'); R(c, x + 16, y + 46, 8, 1, '#8A8478'); }
+  if (id === 'classic') { R(c, x + 14, by + 20, 4, 10, '#F6EEDB'); R(c, x + 15, by + 21, 2, 9, '#D0453A'); R(c, x + 13, by + 20, 1, 10, dk(o.top, 0.4)); R(c, x + 18, by + 20, 1, 10, dk(o.top, 0.4)); }
+  if (id === 'leather') { R(c, x + 9, by + 19, 14, 2, lt(o.top, 0.22)); R(c, x + 15, by + 21, 1, 14, '#C9CFD6'); R(c, x + 11, by + 26, 3, 1, dk(o.top, 0.4)); }
+  if (id === 'military') { R(c, x + 11, by + 24, 4, 3, dk(o.top, 0.35)); R(c, x + 17, by + 28, 4, 3, lt(o.top, 0.2)); R(c, x + 12, by + 31, 3, 2, dk(o.top, 0.35)); R(c, x + 10, by + 3, 12, 4, '#3E4A2E'); R(c, x + 9, by + 6, 14, 2, dk('#3E4A2E', 0.35)); }
+  if (id === 'gold') { for (const sx of [9, 22]) R(c, x + sx, by + 20, 1, 15, st); R(c, x + 5, by + 21, 1, 13, st); R(c, x + 26, by + 21, 1, 13, st); R(c, x + 10, by + 34, 1, 10, st); R(c, x + 21, by + 34, 1, 10, st); R(c, x + 12, by + 20, 8, 1, '#E0B040'); R(c, x + 15, by + 21, 2, 2, '#E0B040'); R(c, x + 12, by + 10, 9, 3, '#14101C'); R(c, x + 13, by + 10, 2, 1, '#7FC4D8'); }
+}
+
+// ---------- Машины 96×44 ----------
+const CAR_P = {
+  suv: { by: 12, bh: 20, cx: 12, cw: 64, cy: 0, ch: 14 },
+  sedan: { by: 18, bh: 14, cx: 22, cw: 46, cy: 7, ch: 12 },
+  sport: { by: 22, bh: 11, cx: 30, cw: 34, cy: 13, ch: 10 },
+  lux: { by: 14, bh: 19, cx: 18, cw: 54, cy: 2, ch: 13 },
+};
+function drawCar(c, car, x, y) {
+  if (!car) return;
+  const p = CAR_P[car.style], b = carColor(car), st = carStage(car);
+  R(c, x + 2, y + 40, 92, 4, 'rgba(10,6,24,0.35)');
+  B(c, x + p.cx, y + p.cy, p.cw, p.ch + 3, b);
+  const wy = y + p.cy + 2, wh = p.ch - 3, half = Math.floor(p.cw / 2);
+  R(c, x + p.cx + 3, wy, half - 4, wh, '#7FC4D8'); R(c, x + p.cx + half + 1, wy, half - 4, wh, '#7FC4D8');
+  R(c, x + p.cx + 3, wy + wh - 3, p.cw - 6, 3, '#4A8CA8');
+  R(c, x + p.cx + 6, wy + 1, 3, wh - 3, '#CFEFF6'); R(c, x + p.cx + half + 4, wy + 1, 2, wh - 3, '#CFEFF6');
+  B(c, x + 4, y + p.by, 88, p.bh, b);
+  R(c, x + 5, y + p.by + 2, 86, 1, lt(b, 0.5));
+  R(c, x + 4, y + p.by + p.bh - 5, 88, 4, car.style === 'lux' ? '#2A2630' : dk(b, 0.28));
+  R(c, x + 49, y + p.by + 2, 1, p.bh - 7, dk(b, 0.45)); R(c, x + 44, y + p.by + 5, 4, 1, lt(b, 0.5)); R(c, x + 53, y + p.by + 5, 4, 1, lt(b, 0.5));
+  R(c, x + 87, y + p.by + 3, 6, 4, '#FFE9A8'); glow(c, x + 93, y + p.by + 5, 18, '#FFE9A8', 0.3);
+  R(c, x + 3, y + p.by + 3, 3, 4, '#D0453A');
+  R(c, x + 90, y + p.by + p.bh - 4, 5, 3, '#9AA0A8');
+  if (car.style === 'sport') { B(c, x + 1, y + p.by - 3, 12, 3, dk(b, 0.3)); R(c, x + 4, y + p.by, 2, 3, dk(b, 0.5)); }
+  if (car.style === 'lux') { R(c, x + 86, y + p.by + 8, 6, 8, '#D8D8D0'); R(c, x + 85, y + p.by - 1, 2, 4, '#E0B040'); }
+  if (car.style === 'suv') R(c, x + p.cx + 4, y - 2, p.cw - 8, 2, '#14101C');
+  if (st >= 1) { R(c, x + 1, y + p.by + p.bh - 3, 4, 3, '#C9CFD6'); R(c, x - 1, y + p.by + p.bh - 2, 3, 2, '#6B6F76'); }
+  if (st >= 2) { B(c, x + 1, y + p.by - 4, 14, 3, dk(b, 0.3)); R(c, x + 4, y + p.by - 2, 2, 4, dk(b, 0.5)); R(c, x + 11, y + p.by - 2, 2, 4, dk(b, 0.5)); R(c, x + 18, y + p.by + p.bh - 4, 56, 2, '#14101C'); }
+  if (st >= 3) { R(c, x + 22, y + p.by + 3, 44, 2, '#F2C14E'); R(c, x + 22, y + p.by + 6, 44, 1, '#FFE9A8'); R(c, x + 8, y + 42, 80, 2, '#7FE6FF'); glow(c, x + 48, y + 43, 54, '#7FE6FF', 0.6); }
+  for (const wx of [16, 68]) {
+    R(c, x + wx - 2, y + 30, 18, 14, '#0E0A18'); R(c, x + wx, y + 32, 14, 12, '#1E1A26');
+    R(c, x + wx + 3, y + 35, 8, 8, st >= 1 ? '#E0B040' : '#C9CFD6'); R(c, x + wx + 5, y + 37, 4, 4, '#6B6F76'); R(c, x + wx + 6, y + 38, 2, 2, '#E8E2D2');
+  }
+}
+
+// ---------- Интерьеры 320×196 ----------
+function win(c, x, y, w, h, t) {
+  R(c, x - 4, y - 4, w + 8, h + 8, '#2A2118'); R(c, x - 3, y - 3, w + 6, h + 6, '#7A5A3A');
+  sky(c, x, y, w, h, '#16213F', '#5B4A7A');
+  for (let i = 0; i < 9; i++) R(c, x + ((i * 37) % w), y + ((i * 19) % (h / 2)), 1, 1, '#C9C3E8');
+  R(c, x + w - 18, y + 6, 8, 8, '#F6EEDB'); R(c, x + w - 15, y + 5, 7, 8, '#1B2750');
+  for (let i = 0; i * 10 < w; i++) {
+    const bh = 10 + ((i * 7) % 15);
+    R(c, x + i * 10, y + h - bh, 9, bh, '#0F1730');
+    for (let j = 0; j < bh - 4; j += 5) if ((i * 5 + j) % 4 < 2) R(c, x + i * 10 + 2, y + h - bh + j + 2, 2, 2, '#F2C14E');
+  }
+  c.globalAlpha = 0.13; R(c, x + 8, y, 6, h, '#FFFFFF'); R(c, x + 20, y, 2, h, '#FFFFFF'); c.globalAlpha = 1;
+  R(c, x + w / 2 - 1, y, 3, h, '#7A5A3A'); R(c, x, y + h / 2 - 1, w, 3, '#7A5A3A');
+  B(c, x - 6, y + h + 3, w + 12, 4, '#9A7A52', false);
+}
+function room(c, wall, floor, pat) {
+  R(c, 0, 0, 320, 196, floor); R(c, 0, 0, 320, 124, wall);
+  if (pat === 'stripe') for (let x = 0; x < 320; x += 10) R(c, x, 0, 5, 124, lt(wall, 0.07));
+  if (pat === 'brick') for (let y = 0; y < 118; y += 8) for (let x = ((y / 8) & 1) * 8 - 8; x < 320; x += 16) R(c, x + 1, y + 1, 14, 6, lt(wall, 0.05 + ((x + y) % 5) * 0.012));
+  if (pat === 'panel') for (let x = 10; x < 320; x += 60) { R(c, x, 14, 48, 96, dk(wall, 0.1)); R(c, x + 2, 16, 44, 92, wall); }
+  R(c, 0, 116, 320, 8, lt(wall, 0.2)); R(c, 0, 124, 320, 2, dk(floor, 0.5));
+  for (let y = 126; y < 196; y += 10) { R(c, 0, y, 320, 1, dk(floor, 0.25)); for (let x = ((y / 10) & 1) * 40; x < 320; x += 80) R(c, x, y, 1, 10, dk(floor, 0.25)); }
+  const g = c.createLinearGradient(0, 126, 0, 196); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(10,6,24,0.35)');
+  c.fillStyle = g; c.fillRect(0, 126, 320, 70);
+}
+function sofa(c, x, y, w, col) {
+  B(c, x, y, w, 26, dk(col, 0.12)); B(c, x + 6, y + 8, w - 12, 15, col);
+  B(c, x - 5, y + 12, 10, 24, col); B(c, x + w - 5, y + 12, 10, 24, col); B(c, x, y + 26, w, 12, col);
+  R(c, x + w / 2, y + 9, 1, 14, dk(col, 0.3)); R(c, x + 4, y + 38, 3, 4, '#2A2118'); R(c, x + w - 7, y + 38, 3, 4, '#2A2118');
+}
+function lamp(c, x, y) { R(c, x, y + 16, 2, 44, '#3A2A22'); R(c, x - 4, y + 58, 10, 3, '#3A2A22'); B(c, x - 7, y, 16, 16, '#F2C14E'); glow(c, x + 1, y + 10, 50, '#FFD88A', 0.33); }
+function plant(c, x, y) {
+  B(c, x, y + 22, 16, 14, '#B5654A');
+  for (const [dx, dy, w, h] of [[-2, 4, 6, 18], [4, 0, 6, 22], [10, 5, 6, 17], [1, 10, 12, 10]]) { R(c, x + dx, y + dy, w, h, '#3E7A46'); R(c, x + dx, y + dy, 2, h, '#5C9A5C'); }
+}
+function rug(c, x, y, w, h, col) {
+  B(c, x, y, w, h, col, false); R(c, x + 4, y + 4, w - 8, h - 8, dk(col, 0.22)); R(c, x + 6, y + 6, w - 12, 1, lt(col, 0.35)); R(c, x + 6, y + h - 7, w - 12, 1, lt(col, 0.35));
+  for (let i = 0; i < w; i += 3) { R(c, x + i, y - 3, 1, 3, lt(col, 0.2)); R(c, x + i, y + h, 1, 3, lt(col, 0.2)); }
+}
+function art(c, x, y, w, h, col) {
+  B(c, x, y, w, h, '#E0B040'); R(c, x + 3, y + 3, w - 6, h - 6, '#F6EEDB'); R(c, x + 5, y + 5, w - 10, h - 10, col);
+  R(c, x + 8, y + h - 14, w - 16, 6, dk(col, 0.35)); R(c, x + w - 20, y + 9, 8, 8, '#F2C14E');
+}
+function drawInterior(c, id, t = 0) {
+  const BOOKS = ['#D0453A', '#4FA89A', '#F2C14E', '#F6EEDB', '#5B4A7A', '#3E7A46'];
+  if (id === 'studio') {
+    room(c, '#4A5A6B', '#3A4654', 'panel'); win(c, 118, 28, 74, 58, t);
+    B(c, 238, 74, 10, 56, '#5A3A2A'); B(c, 150, 100, 92, 24, '#4FA89A'); R(c, 150, 108, 92, 2, lt('#4FA89A', 0.3)); B(c, 214, 94, 24, 10, '#F6EEDB');
+    B(c, 18, 98, 80, 6, '#8A6A4A'); R(c, 22, 104, 4, 22, '#6A4A32'); R(c, 88, 104, 4, 22, '#6A4A32');
+    B(c, 34, 78, 30, 20, '#1A1A22'); R(c, 36, 80, 26, 14, '#2EC4B6'); glow(c, 49, 88, 34, '#2EC4B6', 0.25);
+    B(c, 18, 36, 70, 5, '#6A4A32'); for (let i = 0; i < 8; i++) R(c, 22 + i * 8, 24 + (i % 3), 6, 12 - (i % 3), BOOKS[i % 6]);
+    rug(c, 100, 148, 120, 30, '#7A5A8A'); lamp(c, 290, 64);
+  } else if (id === 'loft') {
+    room(c, '#5B4A6B', '#4A3B57', 'brick'); win(c, 24, 14, 128, 92, t);
+    B(c, 198, 12, 88, 106, '#6A4A36');
+    for (let r = 0; r < 4; r++) { const y = 18 + r * 25; R(c, 202, y + 20, 80, 3, '#4A3024'); for (let i = 0; i < 12; i++) R(c, 204 + i * 6, y + 3 + (i % 3), 5, 17 - (i % 3), BOOKS[(i + r) % 6]); }
+    sofa(c, 40, 98, 104, '#6B7480'); plant(c, 160, 90); lamp(c, 180, 56);
+    rug(c, 40, 150, 160, 28, '#B5654A');
+  } else if (id === 'town') {
+    room(c, '#6B5A3A', '#544530', 'panel');
+    B(c, 124, 48, 72, 78, '#8A8478'); R(c, 136, 74, 48, 52, '#14101C'); B(c, 116, 42, 88, 8, '#6A4A36');
+    for (let i = 0; i < 6; i++) { const fh = 10 + Math.abs(Math.sin(t * 6 + i)) * 10; R(c, 140 + i * 7, 122 - fh, 5, fh, '#F2A23A'); R(c, 141 + i * 7, 122 - fh / 2, 3, fh / 2, '#FFD88A'); }
+    glow(c, 160, 110, 80, '#FF9A3A', 0.35);
+    art(c, 26, 22, 62, 44, '#4A7A4A'); art(c, 232, 22, 62, 44, '#C98B4A'); art(c, 134, 8, 52, 30, '#7A5A9A');
+    sofa(c, 30, 98, 64, '#8F4A4A'); sofa(c, 228, 98, 64, '#8F4A4A'); plant(c, 100, 92); lamp(c, 216, 56);
+    rug(c, 60, 150, 200, 30, '#7A3B3B');
+  } else if (id === 'villa') {
+    room(c, '#3F6B5A', '#335748', 'panel');
+    R(c, 16, 6, 288, 110, '#2A2118'); R(c, 18, 8, 284, 106, '#7A5A3A');
+    sky(c, 22, 12, 276, 102, '#16213F', '#5B4A7A'); R(c, 266, 20, 14, 14, '#F6EEDB'); R(c, 271, 19, 12, 14, '#1B2750');
+    R(c, 22, 66, 276, 48, '#3EA6C9'); R(c, 22, 66, 276, 3, '#BFEFF6');
+    for (let i = 0; i < 12; i++) R(c, 26 + ((i * 29 + t * 12) % 250), 72 + ((i * 7) % 38), 14, 1, '#BFEFF6');
+    R(c, 236, 40, 4, 30, '#3A2A22'); for (const [dx, dy] of [[-14, 0], [0, -6], [12, 0], [-8, 8], [8, 8]]) R(c, 238 + dx, 38 + dy, 14, 4, '#2F6B3F');
+    R(c, 158, 12, 4, 102, '#7A5A3A'); R(c, 22, 60, 276, 3, '#7A5A3A');
+    R(c, 159, 0, 2, 12, '#E0B040'); B(c, 136, 10, 48, 6, '#E0B040'); for (const bx of [140, 158, 176]) glow(c, bx + 4, 18, 22, '#FFD88A', 0.4);
+    sofa(c, 70, 100, 124, '#F2EEE3'); plant(c, 26, 90); plant(c, 278, 90); lamp(c, 260, 56);
+    rug(c, 40, 148, 240, 32, '#8A5A9A');
+  } else {
+    room(c, '#6B2F2A', '#4A2E24', 'stripe');
+    B(c, 30, 12, 98, 78, '#A8322A'); R(c, 36, 18, 86, 66, '#7E241F');
+    for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) { R(c, 46 + i * 15, 26 + j * 14 + ((i & 1) ? 3 : 0), 7, 7, '#E0B040'); R(c, 48 + i * 15, 28 + j * 14 + ((i & 1) ? 3 : 0), 3, 3, '#7E241F'); }
+    for (let x = 0; x < 98; x += 2) R(c, 30 + x, 91, 1, 6, '#E8C27A');
+    win(c, 196, 24, 70, 60, t); B(c, 182, 16, 12, 84, '#D9B26A'); B(c, 270, 16, 12, 84, '#D9B26A');
+    B(c, 138, 40, 34, 72, '#6A4A36'); for (let i = 0; i < 3; i++) { R(c, 142, 46 + i * 20, 26, 14, '#E8E0C8'); R(c, 150, 49 + i * 20, 10, 8, '#7A9A6A'); }
+    sofa(c, 30, 100, 100, '#7D5A44'); R(c, 76, 112, 14, 8, '#E8E0C8');
+    B(c, 206, 92, 42, 30, '#2A2A2A'); R(c, 210, 96, 28, 22, '#7A8A8A'); glow(c, 224, 108, 40, '#9ABAAA', 0.18);
+    B(c, 204, 122, 48, 14, '#6A4A36'); lamp(c, 290, 60);
+    rug(c, 70, 150, 160, 30, '#A8322A');
+  }
+}
+
+// ---------- Заводы 192×96 ----------
+function pawn(c, x, y, col, t, k, gold) {
+  R(c, x, y + 17, 11, 2, 'rgba(10,6,24,0.3)');
+  B(c, x + 2, y + 11, 3, 6, '#2E3440'); B(c, x + 6, y + 11, 3, 6, '#2E3440');
+  B(c, x + 1, y + 5, 9, 7, col);
+  const up = Math.sin(t * 5 + k * 2) > 0;
+  B(c, x + 10, y + (up ? 2 : 7), 2, 5, col); B(c, x - 2, y + (up ? 7 : 2), 2, 5, col);
+  B(c, x + 2, y, 7, 6, '#E7B48B'); R(c, x + 2, y, 7, 2, '#3A2618');
+  if (gold) R(c, x + 5, y + 6, 1, 5, '#E0B040');
+}
+function drawFactory(c, id, t) {
+  const ty = FACTORY_TYPES.find(x => x.id === id), f = findFactory(id), on = !!f;
+  sky(c, 0, 0, 192, 96, '#1B2347', '#46386E');
+  for (let i = 0; i < 14; i++) R(c, (i * 47) % 192, (i * 13) % 26, 1, 1, '#8A86B8');
+  B(c, 6, 24, 124, 46, ty.color);
+  for (let i = 0; i < 4; i++) for (let r = 0; r < 9; r++) R(c, 10 + i * 30, 14 + r, r * 3 + 3, 1, dk(ty.color, 0.18));
+  B(c, 104, 2, 11, 24, '#5A4A44');
+  if (on) for (let k = 0; k < 4; k++) { c.globalAlpha = 0.35 - k * 0.07; R(c, 106 + Math.sin(t + k) * 4, -2 - k * 3 + ((t * 8) % 4), 9 + k * 2, 6, '#C9C3D8'); }
+  c.globalAlpha = 1;
+  for (let i = 0; i < 6; i++) { const lit = on && ((i + Math.floor(t)) % 4 !== 0); R(c, 14 + i * 19, 32, 12, 10, lit ? '#FFD88A' : '#2A2A44'); if (lit) glow(c, 20 + i * 19, 37, 14, '#FFD88A', 0.25); }
+  if (id === 'concrete') { B(c, 12, 44, 16, 26, '#A8A294'); B(c, 32, 50, 14, 20, '#8E887C'); }
+  else if (id === 'milk') { B(c, 12, 46, 14, 24, '#D8E0E8'); B(c, 29, 46, 14, 24, '#D8E0E8'); R(c, 14, 48, 3, 20, '#FFFFFF'); R(c, 31, 48, 3, 20, '#FFFFFF'); }
+  else if (id === 'wine') { for (let i = 0; i < 3; i++) { B(c, 12 + i * 16, 56, 14, 14, '#8A5A32'); R(c, 12 + i * 16, 60, 14, 1, '#3A2A22'); R(c, 12 + i * 16, 66, 14, 1, '#3A2A22'); } }
+  else { for (let i = 0; i < 3; i++) B(c, 12 + i * 15, 58, 13, 12, '#6B7A52'); B(c, 14, 48, 13, 10, '#5C6B3E'); }
+  B(c, 0, 68, 150, 8, '#34343C');
+  for (let x = -((t * 18) % 10); x < 150; x += 10) R(c, x, 70, 4, 1, '#55555F');
+  if (on) for (let i = 0; i < 5; i++) { const bx = ((i * 32 + t * 24) % 160) - 8; if (bx < 142) B(c, bx, 60, 10, 9, ty.box); }
+  B(c, 146, 46, 30, 26, '#C9CFD6'); B(c, 172, 54, 18, 18, '#D0453A'); R(c, 182, 57, 7, 6, '#7FC4D8');
+  for (const wx of [152, 176]) { R(c, wx, 70, 11, 9, '#0E0A18'); R(c, wx + 3, 72, 5, 5, '#C9CFD6'); }
+  R(c, 0, 90, 192, 6, '#2A2A3A');
+  if (on) {
+    for (let k = 0; k < f.workers; k++) pawn(c, 30 + k * 22, 76, '#3B6A9C', t, k, false);
+    if (f.top) pawn(c, 90, 76, f.top === 'director' ? '#1E1A17' : '#4A5A6B', t, 3, f.top === 'director');
+  } else {
+    R(c, 0, 0, 192, 96, 'rgba(10,6,24,0.6)'); B(c, 84, 38, 24, 20, '#E0B040'); R(c, 90, 28, 3, 10, '#C9CFD6'); R(c, 99, 28, 3, 10, '#C9CFD6'); R(c, 90, 28, 12, 3, '#C9CFD6'); R(c, 94, 46, 4, 6, '#14101C');
+  }
+}
+
+// ---------- Гараж 320×180 ----------
+function drawGarage(c, t) {
+  R(c, 0, 0, 320, 180, '#ECEAE4');
+  for (let x = 0; x < 320; x += 40) R(c, x, 0, 1, 76, '#D9D5CB');
+  R(c, 0, 0, 320, 10, '#CFC9BC');
+  B(c, 110, 18, 100, 54, '#CFCAC0'); for (let y = 22; y < 70; y += 5) R(c, 112, y, 96, 1, '#B4AEA0');
+  R(c, 0, 76, 320, 104, '#BDB8AC');
+  for (let y = 76; y < 180; y += 26) { R(c, 0, y, 320, 1, '#A8A398'); for (let x = ((y / 26) & 1) * 20; x < 320; x += 40) R(c, x, y, 1, 26, '#A8A398'); }
+  for (const lx of [50, 190]) { R(c, lx, 6, 80, 4, '#FFF6D8'); glow(c, lx + 40, 10, 80, '#FFF6D8', 0.28); glow(c, lx + 40, 110, 70, '#FFFFFF', 0.12); }
+  const slots = [[22, 64], [202, 64], [22, 118], [202, 118]];
+  slots.forEach(([sx, sy], i) => {
+    c.globalAlpha = 0.7; R(c, sx - 8, sy + 2, 112, 2, '#E0B040'); R(c, sx - 8, sy + 2, 2, 46, '#E0B040'); R(c, sx + 102, sy + 2, 2, 46, '#E0B040'); R(c, sx - 8, sy + 46, 112, 2, '#E0B040'); c.globalAlpha = 1;
+    R(c, sx + 44, sy + 51 > 176 ? sy + 40 : sy + 51, 8, 4, '#E0B040');
+    drawCar(c, CARS.find(k => k.id === state.cars[i]), sx, sy);
+  });
+}
+
+function bestCar() {
+  const owned = CARS.filter(k => state.cars.includes(k.id));
+  owned.sort((a, b) => b.price - a.price);
+  return owned[0] || null;
+}
+
+// ---------- Лобби 320×240 ----------
+function drawLobby(c, t) {
+  drawInterior(c, state.houseId || 'grandma', t);
+  R(c, 0, 196, 320, 44, '#2B2D3A'); R(c, 0, 196, 320, 3, '#7A7F86'); R(c, 0, 199, 320, 2, '#4A4D58');
+  for (let x = 0; x < 320; x += 36) R(c, x + 6, 224, 20, 3, '#F2C14E');
+  drawCharacter(c, wornOutfit(), 76, 138, t);
+  drawCar(c, bestCar(), 196, 194);
+}
+
+// ---------- Отрисовка всех сцен ----------
+const SIZES = { chart: [240, 144], lobby: [320, 240], garage: [320, 180], interior: [320, 196], car: [96, 44], factory: [192, 96], dress: [32, 48], bar: [320, 180] };
+function paintAll() {
+  const t = performance.now() / 1000;
+  document.querySelectorAll('canvas[data-scene]').forEach(cv => {
+    const sc = cv.dataset.scene, d = SIZES[sc];
+    if (!d || cv.offsetParent === null) return;
+    if (cv.width !== d[0]) { cv.width = d[0]; cv.height = d[1]; cv.dataset.sig = ''; }
+    const anim = sc === 'chart' || sc === 'lobby' || sc === 'factory' || sc === 'bar';
+    const sig = state.houseId + '|' + state.cars + '|' + state.worn + '|' + cv.dataset.id + '|' + JSON.stringify([state.x.colors, state.x.stages]);
+    if (!anim && cv.dataset.sig === sig) return;
+    cv.dataset.sig = sig;
+    const c = cv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.clearRect(0, 0, cv.width, cv.height);
+    switch (sc) {
+      case 'chart': drawChart(c, t); break;
+      case 'bar': drawBar(c, t); break;
+      case 'lobby': drawLobby(c, t); break;
+      case 'garage': drawGarage(c, t); break;
+      case 'interior': drawInterior(c, cv.dataset.id, 0); break;
+      case 'car': drawCar(c, CARS.find(k => k.id === cv.dataset.id), 0, 0); break;
+      case 'factory': drawFactory(c, cv.dataset.id, t); break;
+      case 'dress': drawCharacter(c, CLOTHES.find(k => k.id === cv.dataset.id) || CLOTHES[0], 0, 0, 0); break;
+    }
+    flushLights(c, sc, cv.width, cv.height);
+  });
+}
+
+// ---------- Интерфейс ----------
+const tokensEl = document.getElementById('tokens');
+const incomeEl = document.getElementById('income');
+const chartCv = document.getElementById('chart');
+
+function card(title, sub, actions, thumb = '') {
+  return `<div class="card">${thumb}<div class="card-title">${title}</div><div class="card-sub">${sub}</div>${actions}</div>`;
+}
+
+function factoriesHtml() {
+  return FACTORY_TYPES.map(t => {
+    const f = findFactory(t.id);
+    const thumb = `<canvas class="thumb" data-scene="factory" data-id="${t.id}" width="96" height="48"></canvas>`;
+    if (!f) {
+      return card(t.name, 'Не куплен. Доход начнётся после покупки.',
+        `<div class="row"><button class="key" data-act="buy-factory" data-id="${t.id}">Купить · ${fmt(nextFactoryPrice())}</button></div>`,
+        thumb);
+    }
+    let actions = '<div class="row">';
+    if (f.workers < CONFIG.maxWorkers) {
+      actions += `<button class="key" data-act="hire-worker" data-id="${t.id}">Нанять работника · ${fmt(CONFIG.workerCost)}</button>`;
+    }
+    if (!f.top && f.workers === CONFIG.maxWorkers) {
+      actions += `<button class="key" data-act="hire-top" data-role="manager" data-id="${t.id}">Менеджер · ${fmt(CONFIG.managerCost)}</button>`;
+      actions += `<button class="key" data-act="hire-top" data-role="director" data-id="${t.id}">Директор · ${fmt(CONFIG.directorCost)}</button>`;
+    } else if (!f.top) {
+      actions += '<div class="card-sub">Менеджер и директор откроются после двух работников</div>';
+    } else {
+      actions += `<div class="card-sub">Управляющий: ${f.top === 'manager' ? 'менеджер' : 'директор'}</div>`;
+    }
+    actions += '</div>';
+    return card(t.name,
+      `Доход: ${fmt(factoryIncome(f))} в час · работники ${f.workers}/${CONFIG.maxWorkers}`,
+      actions, thumb);
+  }).join('');
+}
+
+function housesHtml() {
+  return HOUSES.map(h => {
+    let btn;
+    if (state.houseId === h.id) {
+      btn = '<button class="key" disabled>Ваш дом</button>';
+    } else if (h.carSlots < state.cars.length) {
+      btn = '<button class="key" disabled>Мало места для машин</button>';
+    } else {
+      btn = `<button class="key" data-act="buy-house" data-id="${h.id}">Купить · ${fmt(h.price)}</button>`;
+    }
+    const thumb = `<canvas class="thumb" data-scene="interior" data-id="${h.id}" width="160" height="100"></canvas>`;
+    return card(h.name, `Машин в доме: до ${h.carSlots}`, `<div class="row">${btn}</div>`, thumb);
+  }).join('');
+}
+
+function clothesHtml() {
+  return CLOTHES.map(c => {
+    let btn;
+    if (state.worn === c.id) {
+      btn = '<button class="key" disabled>Надето</button>';
+    } else if (state.clothes.includes(c.id)) {
+      btn = `<button class="key" data-act="wear" data-id="${c.id}">Надеть</button>`;
+    } else {
+      btn = `<button class="key" data-act="buy-cloth" data-id="${c.id}">Купить · ${fmt(c.price)}</button>`;
+    }
+    const thumb = `<canvas class="mini" data-scene="dress" data-id="${c.id}" width="16" height="24"></canvas>`;
+    return card(c.name, c.price ? `${fmt(c.price)} токенов` : 'Бесплатно', `<div class="row">${btn}</div>`, thumb);
+  }).join('');
+}
+
+function carsHtml() {
+  const house = currentHouse();
+  return CARS.map(c => {
+    let btn;
+    if (state.cars.includes(c.id)) {
+      btn = '<button class="key" disabled>Ваша</button>';
+    } else if (!house) {
+      btn = '<button class="key" disabled>Нужен дом</button>';
+    } else if (state.cars.length >= house.carSlots) {
+      btn = '<button class="key" disabled>Нет места в доме</button>';
+    } else {
+      btn = `<button class="key" data-act="buy-car" data-id="${c.id}">Купить · ${fmt(c.price)}</button>`;
+    }
+    const thumb = `<canvas class="thumb" data-scene="car" data-id="${c.id}" width="40" height="18"></canvas>`;
+    return card(c.name, `${fmt(c.price)} токенов`, `<div class="row">${btn}</div>`, thumb);
+  }).join('');
+}
+
+function renderLog() {
+  const ul = document.getElementById('log');
+  ul.innerHTML = state.log.length
+    ? state.log.map(e => `<li>${e.text}</li>`).join('')
+    : '<li>Пока тихо. Иди зарабатывай.</li>';
+}
+
+function renderAll() {
+  tokensEl.textContent = fmt(state.tokens);
+  incomeEl.textContent = `Доход: ${fmt(incomePerHour())} в час`;
+  document.getElementById('factoryList').innerHTML = factoriesHtml();
+  document.getElementById('houseList').innerHTML = housesHtml();
+  document.getElementById('clothesList').innerHTML = clothesHtml();
+  document.getElementById('carList').innerHTML = carsHtml();
+  const house = currentHouse();
+  document.getElementById('garageCaption').textContent =
+    `Машин: ${state.cars.length} · мест в доме: ${house ? house.carSlots : 0}`;
+  renderLog();
+  renderExtra();
+  paintAll();
+}
+
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 's-' + id));
+  paintAll();
+}
+
+// ---------- Покупки ----------
+function buyFactory(id) {
+  if (findFactory(id)) return;
+  const price = nextFactoryPrice();
+  if (!spend(price)) return;
+  state.factories.push({ typeId: id, workers: 0, top: null });
+  addLog(`Открыт «${factoryName(id)}» за ${fmt(price)}`);
+  sfx('buy');
+  renderAll();
+}
+
+function hireWorker(id) {
+  const f = findFactory(id);
+  if (!f || f.workers >= CONFIG.maxWorkers) return;
+  if (!spend(CONFIG.workerCost)) return;
+  f.workers++;
+  addLog(`Нанят работник на «${factoryName(id)}»`);
+  sfx('buy');
+  renderAll();
+}
+
+function hireTop(id, role) {
+  const f = findFactory(id);
+  if (!f || f.top || f.workers < CONFIG.maxWorkers) return;
+  const cost = role === 'director' ? CONFIG.directorCost : CONFIG.managerCost;
+  if (!spend(cost)) return;
+  f.top = role;
+  addLog(`На «${factoryName(id)}» пришёл ${role === 'director' ? 'директор' : 'менеджер'}`);
+  sfx('buy');
+  renderAll();
+}
+
+function buyCloth(id) {
+  const item = CLOTHES.find(c => c.id === id);
+  if (!item || state.clothes.includes(id)) return;
+  if (!spend(item.price)) return;
+  state.clothes.push(id);
+  state.worn = id;
+  addLog(`Новый образ: ${item.name}`);
+  sfx('buy');
+  renderAll();
+}
+
+function buyHouse(id) {
+  const h = HOUSES.find(x => x.id === id);
+  if (!h || state.houseId === id) return;
+  if (h.carSlots < state.cars.length) {
+    showToast('В этом доме не хватит места для твоих машин');
+    return;
+  }
+  if (!spend(h.price)) return;
+  state.houseId = id;
+  addLog(`Переехал в «${h.name}»`);
+  sfx('buy');
+  renderAll();
+}
+
+function buyCar(id) {
+  const car = CARS.find(c => c.id === id);
+  const house = currentHouse();
+  if (!car || state.cars.includes(id)) return;
+  if (!house) { showToast('Сначала купи дом'); return; }
+  if (state.cars.length >= house.carSlots) { showToast('В доме нет места. Купи дом побольше'); return; }
+  if (!spend(car.price)) return;
+  state.cars.push(id);
+  addLog(`Купил «${car.name}», теперь он в гараже`);
+  sfx('buy');
+  renderAll();
+}
+
+// ---------- Атаки ----------
+function scheduleNextAttack() {
+  state.nextAttackAt = Date.now() + rand(CONFIG.attackMinH, CONFIG.attackMaxH) * 3600000;
+}
+
+function loseEmployee(weights) {
+  const pools = {
+    worker: state.factories.filter(f => f.workers > 0),
+    manager: state.factories.filter(f => f.top === 'manager'),
+    director: state.factories.filter(f => f.top === 'director'),
+  };
+  const available = Object.keys(weights).filter(k => pools[k].length);
+  if (!available.length) return null;
+  const total = available.reduce((s, k) => s + weights[k], 0);
+  let r = Math.random() * total;
+  let kind = available[0];
+  for (const k of available) {
+    r -= weights[k];
+    if (r <= 0) { kind = k; break; }
+  }
+  const f = pools[kind][Math.floor(Math.random() * pools[kind].length)];
+  if (kind === 'worker') f.workers--; else f.top = null;
+  return { kind, factory: f };
+}
+
+function pickAttackType() {
+  const options = ['tax'];
+  if (state.factories.length) options.push('raid');
+  if (employeeCount() > 0) options.push('tck');
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function taxAttack() {
+  const bal = state.tokens;
+  const loss = Math.min(bal, Math.max(CONFIG.taxMin, Math.floor(bal * CONFIG.taxShare)));
+  state.tokens -= loss;
+  addLog(`Налоговая списала ${fmt(loss)} токенов`);
+  sfx('loss');
+  haptic('error');
+  renderAll();
+  writeSave();
+  openModal(`<div class="section-title">Налоговая</div>
+    <div class="bubble">Друг: «Откупились…»</div>
+    <div class="event-text">Налоговая списала ${fmt(loss)} токенов. Так бывает, когда нормально живёшь.</div>
+    <button class="key" data-act="close">Понятно</button>`);
+}
+
+function tckAttack() {
+  const lost = loseEmployee(EMP_WEIGHTS);
+  const text = lost
+    ? `ТЦК вежливо забрали ${EMP_NAME[lost.kind]} с «${factoryName(lost.factory.typeId)}». Назад не вернётся.`
+    : 'ТЦК заглянули, но забирать было некого.';
+  addLog(text);
+  sfx('alarm');
+  haptic('error');
+  renderAll();
+  writeSave();
+  openEvent('ТЦК', text);
+}
+
+function raidAttack() {
+  const loot = Math.floor(state.tokens * CONFIG.raidLootShare);
+  state.tokens -= loot;
+  const lost = loseEmployee(EMP_WEIGHTS);
+  const intro = `Рейдеры украли ${fmt(loot)} токенов.` +
+    (lost ? ` Уволился ${EMP_NAME[lost.kind]} с «${factoryName(lost.factory.typeId)}».` : '');
+  addLog(intro);
+  sfx('alarm');
+  haptic('error');
+  renderAll();
+  writeSave();
+  openMaze(loot, intro);
+}
+
+function triggerAttack(type) {
+  if (attackOpen) return;
+  scheduleNextAttack();
+  attackOpen = true;
+  const kind = type || pickAttackType();
+  if (kind === 'raid') raidAttack();
+  else if (kind === 'tck') tckAttack();
+  else taxAttack();
+}
+
+function checkAttack() {
+  if (!attackOpen && Date.now() >= state.nextAttackAt) triggerAttack();
+}
+
+// ---------- Лабиринт ----------
+const MAZE_N = 15;
+const TILE = 12;
+const maze = { grid: null, px: 1, py: 1, goalX: MAZE_N - 2, goalY: MAZE_N - 2, left: 0, timer: null, loot: 0, active: false, finished: false };
+
+function genMaze(n) {
+  const g = Array.from({ length: n }, () => Array(n).fill(1));
+  const stack = [[1, 1]];
+  g[1][1] = 0;
+  const dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+  while (stack.length) {
+    const [x, y] = stack[stack.length - 1];
+    const opts = dirs
+      .map(([dx, dy]) => [x + dx, y + dy, dx, dy])
+      .filter(([nx, ny]) => nx > 0 && ny > 0 && nx < n - 1 && ny < n - 1 && g[ny][nx] === 1);
+    if (!opts.length) { stack.pop(); continue; }
+    const [nx, ny, dx, dy] = opts[Math.floor(Math.random() * opts.length)];
+    g[y + dy / 2][x + dx / 2] = 0;
+    g[ny][nx] = 0;
+    stack.push([nx, ny]);
+  }
+  return g;
+}
+
+function drawMaze() {
+  const cv = document.getElementById('maze');
+  if (!cv || !maze.grid) return;
+  const ctx = cv.getContext('2d');
+  for (let y = 0; y < MAZE_N; y++) {
+    for (let x = 0; x < MAZE_N; x++) {
+      R(ctx, x * TILE, y * TILE, TILE, TILE, maze.grid[y][x] ? '#1E1A17' : '#EFE3C8');
+    }
+  }
+  R(ctx, maze.goalX * TILE + 2, maze.goalY * TILE + 2, TILE - 4, TILE - 4, '#F2C14E');
+  R(ctx, maze.goalX * TILE + 5, maze.goalY * TILE + 5, 2, 2, '#1E1A17');
+  R(ctx, maze.px * TILE + 1, maze.py * TILE + 3, TILE - 2, TILE - 6, '#D0453A');
+  R(ctx, maze.px * TILE + 3, maze.py * TILE + 4, TILE - 6, 2, '#7FB8CC');
+}
+
+function updateTimer() {
+  const el = document.getElementById('mazeTimer');
+  if (el) el.textContent = `Осталось ${maze.left.toFixed(1)} с`;
+}
+
+function openMaze(loot, intro) {
+  maze.loot = loot;
+  maze.grid = genMaze(MAZE_N);
+  maze.px = 1;
+  maze.py = 1;
+  maze.left = CONFIG.mazeSeconds;
+  maze.active = false;
+  maze.finished = false;
+  clearInterval(maze.timer);
+  const back = fmt(Math.floor(loot * CONFIG.raidRecover));
+  openModal(`<div class="section-title">Погоня</div>
+    <div class="event-text">${intro || ''} Доедь до банка за ${CONFIG.mazeSeconds} секунд и вернёшь ${back} токенов.</div>
+    <canvas id="maze" width="${MAZE_N * TILE}" height="${MAZE_N * TILE}"></canvas>
+    <div class="timer" id="mazeTimer"></div>
+    <div class="dpad">
+      <span></span><button class="key" data-maze="0,-1">▲</button><span></span>
+      <button class="key" data-maze="-1,0">◀</button><span></span><button class="key" data-maze="1,0">▶</button>
+      <span></span><button class="key" data-maze="0,1">▼</button><span></span>
+    </div>
+    <button class="key" data-act="maze-start" id="mazeStart">Поехали</button>`);
+  updateTimer();
+  drawMaze();
+}
+
+function startMazeTimer() {
+  if (maze.active || maze.finished) return;
+  maze.active = true;
+  const btn = document.getElementById('mazeStart');
+  if (btn) btn.disabled = true;
+  sfx('ok');
+  maze.timer = setInterval(() => {
+    maze.left = Math.max(0, maze.left - 0.1);
+    updateTimer();
+    if (maze.left <= 0) finishMaze(false);
+  }, 100);
+}
+
+function mazeMove(dx, dy) {
+  if (!maze.active || maze.finished || !maze.grid) return;
+  const nx = maze.px + dx;
+  const ny = maze.py + dy;
+  if (nx < 0 || ny < 0 || nx >= MAZE_N || ny >= MAZE_N || maze.grid[ny][nx]) return;
+  maze.px = nx;
+  maze.py = ny;
+  drawMaze();
+  if (nx === maze.goalX && ny === maze.goalY) finishMaze(true);
+}
+
+function finishMaze(win) {
+  if (maze.finished) return;
+  maze.finished = true;
+  maze.active = false;
+  clearInterval(maze.timer);
+  if (maze.mode === 'courier') return finishCourier(win);
+  let title;
+  let text;
+  if (win) {
+    const back = Math.floor(maze.loot * CONFIG.raidRecover);
+    state.tokens += back;
+    title = 'Добыча возвращена';
+    text = `Успел до банка! Вернул ${fmt(back)} токенов.`;
+    addLog(`Вернул ${fmt(back)} токенов из рейда`);
+    sfx('coin');
+  } else {
+    title = 'Рейд не отбит';
+    text = 'Не успел. Добыча осталась у рейдеров.';
+    addLog('Рейдеры ушли с добычей');
+    sfx('loss');
+  }
+  renderAll();
+  writeSave();
+  openModal(`<div class="section-title">${title}</div>
+    <div class="event-text">${text}</div>
+    <button class="key" data-act="close">Понятно</button>`);
+}
+
+// ---------- Настройки и сброс ----------
+function openSettings() {
+  openModal(`<div class="section-title">Настройки</div>
+    <button class="key" data-act="toggle-sound">Звук: ${state.settings.sound ? 'вкл' : 'выкл'}</button>
+    <button class="key" data-act="toggle-vibe">Вибрация: ${state.settings.vibe ? 'вкл' : 'выкл'}</button>
+    <button class="key" data-act="reset-ask">Сбросить прогресс</button>
+    <button class="key" data-act="close">Закрыть</button>`);
+}
+
+function resetProgress() {
+  Object.assign(state, {
+    tokens: 0, factories: [], houseId: null, cars: [],
+    clothes: ['tracksuit'], worn: 'tracksuit', log: [], savedAt: Date.now(), x: JSON.parse(JSON.stringify(X0)),
+  });
+  scheduleNextAttack();
+  addLog('Начинаем с нуля: серый костюм и 0 токенов');
+  writeSave();
+  renderAll();
+  closeModal();
+}
+
+// ---------- Тестовый режим ----------
+let logoTaps = [];
+document.getElementById('logo').addEventListener('click', () => {
+  const now = Date.now();
+  logoTaps = logoTaps.filter(t => now - t < 3000);
+  logoTaps.push(now);
+  if (logoTaps.length >= CONFIG.testTaps) {
+    logoTaps = [];
+    openModal(`<div class="section-title">Тестовый режим</div>
+      <input class="input" id="testPass" type="password" placeholder="Пароль">
+      <button class="key" data-act="test-submit">Войти</button>
+      <button class="key" data-act="close">Отмена</button>`);
+  }
+});
+
+function unlockAll() {
+  state.tokens += 5000000;
+  FACTORY_TYPES.forEach(t => {
+    if (!findFactory(t.id)) state.factories.push({ typeId: t.id, workers: CONFIG.maxWorkers, top: 'director' });
+  });
+  state.houseId = 'villa';
+  state.cars = CARS.map(c => c.id);
+  state.clothes = CLOTHES.map(c => c.id);
+  state.worn = 'gold';
+  addLog('Тестовый режим: открыто всё');
+  writeSave();
+  renderAll();
+}
+
+function testSubmit() {
+  const input = document.getElementById('testPass');
+  if (!input || input.value !== CONFIG.testPassword) {
+    showToast('Неверный пароль');
+    return;
+  }
+  unlockAll();
+  closeModal();
+}
+
+// ---------- Buy в трейдинге ----------
+function buy() {
+  if (trend.phase === 'bull') {
+    state.tokens += CONFIG.tapGain;
+    spawnFloat(`+${CONFIG.tapGain}`, 'gain');
+    sfx('gain');
+    haptic('impact');
+  } else {
+    const lost = Math.min(state.tokens, CONFIG.bearPenalty);
+    state.tokens -= lost;
+    if (lost > 0) spawnFloat(`−${lost}`, 'loss');
+    sfx('loss');
+    chartCv.classList.remove('shake');
+    void chartCv.offsetWidth;
+    chartCv.classList.add('shake');
+    haptic('error');
+  }
+  tokensEl.textContent = fmt(state.tokens);
+}
+
+function spawnFloat(text, kind) {
+  const el = document.createElement('div');
+  el.className = `float ${kind}`;
+  el.textContent = text;
+  document.getElementById('s-trade').appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+document.getElementById('buy').addEventListener('pointerdown', buy);
+
+// ---------- Обработка нажатий ----------
+function handleAct(act, id, role) {
+  if (extraAct(act, id, role)) return;
+  switch (act) {
+    case 'buy-factory': return buyFactory(id);
+    case 'hire-worker': return hireWorker(id);
+    case 'hire-top': return hireTop(id, role);
+    case 'buy-cloth': return buyCloth(id);
+    case 'wear': state.worn = id; return renderAll();
+    case 'buy-house': return buyHouse(id);
+    case 'buy-car': return buyCar(id);
+    case 'settings': return openSettings();
+    case 'toggle-sound': state.settings.sound = !state.settings.sound; writeSave(); return openSettings();
+    case 'toggle-vibe': state.settings.vibe = !state.settings.vibe; writeSave(); return openSettings();
+    case 'reset-ask': return openModal(`<div class="section-title">Сбросить прогресс?</div>
+      <div class="event-text">Все токены, заводы, дома и машины пропадут. Это нельзя отменить.</div>
+      <button class="key" data-act="reset-confirm">Да, сбросить</button>
+      <button class="key" data-act="close">Отмена</button>`);
+    case 'reset-confirm': return resetProgress();
+    case 'maze-start': return startMazeTimer();
+    case 'test-submit': return testSubmit();
+    case 'close': return closeModal();
+  }
+}
+
+document.addEventListener('click', e => {
+  const go = e.target.closest('[data-go]');
+  if (go) { goTo(go.dataset.go); return; }
+  const mz = e.target.closest('[data-maze]');
+  if (mz) {
+    const [dx, dy] = mz.dataset.maze.split(',').map(Number);
+    mazeMove(dx, dy);
+    return;
+  }
+  const el = e.target.closest('[data-act]');
+  if (el && !el.disabled) handleAct(el.dataset.act, el.dataset.id, el.dataset.role);
+});
+
+document.addEventListener('keydown', e => {
+  const keys = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  const move = keys[e.key];
+  if (move && maze.active) {
+    e.preventDefault();
+    mazeMove(move[0], move[1]);
+  }
+});
+
+// ---------- Версия 3: геймплей и свет HD-2D ----------
+const X0 = { guards: 0, lawyer: false, prestige: 0, drinks: 0, deliveries: 0, raids: 0, ach: {}, daily: { day: 0, last: '' }, nextEventAt: 0, courierAt: 0, colors: {}, stages: {}, races: 0 };
+state.x = JSON.parse(JSON.stringify(X0));
+const rint = (a, b) => Math.floor(rand(a, b + 1));
+const DRINKS = { whisky: ['Виски', '#C98B2A'], tequila: ['Текила', '#E8D98A'], beer: ['Пиво', '#F2C14E'] };
+const RAID_W = [30, 25, 20, 12, 8, 5];
+const AMB = { garage: '#D8D4EC', chart: '#CFC6E8', factory: '#B0A8D4', bar: '#C8B0B8' };
+const ACH = [
+  ['first', 'Первый токен', 500, () => state.tokens >= 1],
+  ['factory', 'Первый завод', 1000, () => state.factories.length > 0],
+  ['house', 'Свой дом', 2000, () => !!state.houseId],
+  ['raid', 'Пережил рейд', 500, () => state.x.raids > 0],
+  ['drinks', 'Налил 100 напитков', 3000, () => state.x.drinks >= 100],
+  ['courier', '10 доставок', 3000, () => state.x.deliveries >= 10],
+  ['guards', 'Полная охрана', 5000, () => state.x.guards >= 5],
+  ['million', 'Миллион токенов', 20000, () => state.tokens >= 1e6],
+];
+const DAILY = [500, 1000, 1500, 2500, 4000, 6000, 10000];
+const today = () => new Date().toISOString().slice(0, 10);
+const yesterday = () => new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+
+function flushLights(c, sc, W, H) {
+  const scene = sc !== 'dress' && sc !== 'car';
+  if (scene) { c.globalCompositeOperation = 'multiply'; c.fillStyle = AMB[sc] || '#B8AEDA'; c.fillRect(0, 0, W, H); }
+  c.globalCompositeOperation = 'lighter';
+  for (const [x, y, r, col, a] of LIGHTS) {
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.globalAlpha = Math.min(1, a * 1.4); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; LIGHTS.length = 0;
+  if (scene) {
+    const v = c.createRadialGradient(W / 2, H / 2, H * 0.38, W / 2, H / 2, H * 0.95);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,6,28,0.4)');
+    c.fillStyle = v; c.fillRect(0, 0, W, H);
+  }
+}
+
+function incomePerHour() {
+  const base = state.factories.reduce((s, f) => s + factoryIncome(f), 0);
+  return Math.max(0, Math.round(base * (1 + 0.1 * Math.min(state.x.prestige, 5))) - 100 * state.x.guards);
+}
+
+function unlockAll() {
+  state.tokens += 10000000;
+  addLog('Тестовый режим: +10 000 000 токенов');
+  writeSave(); renderAll();
+}
+
+function pickAttackType() {
+  const w = { tax: state.x.lawyer ? 0.3 : 1 };
+  if (state.factories.length) w.raid = 1;
+  if (employeeCount() > 0) w.tck = 1;
+  let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0), last = 'tax';
+  for (const k in w) { last = k; r -= w[k]; if (r <= 0) return k; }
+  return last;
+}
+
+function raidAttack() {
+  const x = state.x;
+  x.raids++;
+  let n = 1, r = Math.random() * 100;
+  for (let i = 0; i < 6; i++) { r -= RAID_W[i]; if (r <= 0) { n = i + 1; break; } }
+  const g = x.guards;
+  if (g > 0) {
+    const ch = Math.min(1, 0.5 * Math.pow(2, g - n));
+    if (Math.random() < ch) {
+      addLog(`Охрана отбила рейд: рейдеров ${n}`); sfx('coin'); renderAll(); writeSave();
+      return openEvent('Рейд отбит', `Рейдеров: ${n}, охранников: ${g}. Шанс был ${Math.round(ch * 100)}%. Токены на месте, охрана цела.`);
+    }
+    x.guards--;
+    addLog('Охранник погиб в бою с рейдерами');
+  }
+  const loot = Math.floor(state.tokens * CONFIG.raidLootShare);
+  state.tokens -= loot;
+  const lost = loseEmployee(EMP_WEIGHTS);
+  const intro = `Рейдеров: ${n}.${g > 0 ? ' Охранник погиб.' : ''} Украдено ${fmt(loot)} токенов.` +
+    (lost ? ` Уволился ${EMP_NAME[lost.kind]} с «${factoryName(lost.factory.typeId)}».` : '');
+  addLog(intro); sfx('alarm'); haptic('error'); renderAll(); writeSave();
+  maze.mode = 'raid';
+  openMaze(loot, intro);
+}
+
+// ----- Бармен -----
+const bar = { cl: null, next: 0, outfit: null };
+function barLeave(msg) { bar.cl = null; bar.next = Date.now() + rand(15, 30) * 1000; if (msg) showToast(msg); }
+function barTick() {
+  if (!document.getElementById('s-bar').classList.contains('active')) return;
+  const now = Date.now();
+  if (!bar.cl && now >= bar.next) {
+    bar.cl = { drink: Object.keys(DRINKS)[rint(0, 2)], until: now + 10000, state: 'wait' };
+    bar.outfit = CLOTHES[rint(1, CLOTHES.length - 1)];
+    sfx('ok');
+  } else if (bar.cl && bar.cl.state === 'wait' && now > bar.cl.until) barLeave('Клиент ушёл без напитка');
+  const cl = bar.cl;
+  document.getElementById('barHint').textContent = cl
+    ? (cl.state === 'wait' ? `Клиент просит: ${DRINKS[cl.drink][0]} (${Math.max(0, Math.ceil((cl.until - now) / 1000))} с)` : 'Наливаю...')
+    : 'Жди клиента';
+}
+function barPick(id) {
+  const cl = bar.cl;
+  if (!cl || cl.state !== 'wait') return;
+  if (id !== cl.drink) { sfx('loss'); haptic('error'); return barLeave('Не тот напиток. Клиент ушёл'); }
+  cl.state = 'pour'; cl.t0 = performance.now(); sfx('buy');
+  setTimeout(() => {
+    if (bar.cl !== cl) return;
+    const pay = rint(12, 24);
+    state.tokens += pay; state.x.drinks++;
+    sfx('coin'); showToast(`+${pay} токенов чаевых`); renderAll(); barLeave();
+  }, 1200);
+}
+function drawBar(c, t) {
+  const col = ['#C98B2A', '#E8D98A', '#4FA89A', '#D0453A', '#7FC4D8'];
+  R(c, 0, 0, 320, 128, '#4A3140');
+  for (let x = 0; x < 320; x += 12) R(c, x, 0, 6, 128, '#533848');
+  B(c, 30, 30, 260, 5, '#6A4A32'); B(c, 30, 68, 260, 5, '#6A4A32');
+  for (let i = 0; i < 18; i++) { B(c, 38 + i * 14, 14 + (i % 2) * 4, 8, 16 - (i % 2) * 4, col[i % 5], false); B(c, 38 + i * 14, 50, 8, 18, col[(i + 2) % 5], false); }
+  glow(c, 160, 44, 130, '#FFD88A', 0.4); glow(c, 240, 20, 50, '#FFD88A', 0.3);
+  R(c, 0, 128, 320, 52, '#3A2A24');
+  for (let y = 138; y < 180; y += 10) R(c, 0, y, 320, 1, '#2A1E1A');
+  drawCharacter(c, { id: 'bartender', top: '#F6EEDB', bottom: '#1E1A17', shoes: '#1E1A17' }, 214, 74, t);
+  B(c, 0, 118, 320, 14, '#7A5A3A'); R(c, 0, 118, 320, 2, '#A8825A'); R(c, 0, 132, 320, 20, '#5A3F2C');
+  const cl = bar.cl;
+  if (!cl) return;
+  drawCharacter(c, bar.outfit, 70, 112, t + 1);
+  if (cl.state === 'wait') { B(c, 108, 84, 30, 26, '#F6EEDB'); B(c, 118, 88, 10, 16, DRINKS[cl.drink][1], false); }
+  else {
+    const p = Math.min(1, (performance.now() - cl.t0) / 1000);
+    B(c, 150, 100, 14, 18, '#CFEFF6'); R(c, 152, 116 - p * 14, 10, p * 14, DRINKS[cl.drink][1]);
+  }
+}
+
+// ----- Курьер -----
+function startCourier() {
+  const left = state.x.courierAt - Date.now();
+  if (left > 0) return showToast(`Новый заказ через ${Math.ceil(left / 1000)} с`);
+  maze.mode = 'courier';
+  openMaze(0, '');
+  modalBox.querySelector('.section-title').textContent = 'Доставка';
+  modalBox.querySelector('.event-text').textContent = 'Довези заказ до дома за 40 секунд. За доставку заплатят 50–130 токенов.';
+  maze.left = 40; updateTimer();
+}
+function finishCourier(win) {
+  state.x.courierAt = Date.now() + 20000;
+  let title, text;
+  if (win) {
+    const pay = rint(50, 130);
+    state.tokens += pay; state.x.deliveries++;
+    title = 'Заказ доставлен'; text = `Клиент доволен. Заработано ${pay} токенов.`;
+    addLog(`Доставка: +${pay} токенов`); sfx('coin');
+  } else { title = 'Заказ сорван'; text = 'Не успел. Пицца остыла, чаевых нет.'; sfx('loss'); }
+  renderAll(); writeSave();
+  openModal(`<div class="section-title">${title}</div><div class="event-text">${text}</div><button class="key" data-act="close">Понятно</button>`);
+}
+
+// ----- Награды, достижения, престиж -----
+function checkAch() {
+  for (const [id, name, reward, ok] of ACH) {
+    if (!state.x.ach[id] && ok()) {
+      state.x.ach[id] = 1; state.tokens += reward;
+      addLog(`Достижение: ${name} (+${fmt(reward)})`); showToast(`Достижение: ${name}`); sfx('coin'); renderAll();
+    }
+  }
+}
+function openRewards() {
+  const d = state.x.daily, can = d.last !== today();
+  const day = can ? (d.last === yesterday() ? (d.day % 7) + 1 : 1) : d.day;
+  const list = ACH.map(a => `<div class="card-sub">${state.x.ach[a[0]] ? '✔' : '○'} ${a[1]}: ${fmt(a[2])}</div>`).join('');
+  openModal(`<div class="section-title">Награды</div>
+    <div class="card-sub">Ежедневная награда, день ${day || 1} из 7: ${fmt(DAILY[(day || 1) - 1])} токенов</div>
+    <button class="key" data-act="claim-daily" ${can ? '' : 'disabled'}>${can ? 'Забрать' : 'Уже забрал сегодня'}</button>
+    <div class="section-title">Достижения</div>${list}
+    <button class="key" data-act="close">Закрыть</button>`);
+}
+function claimDaily() {
+  const d = state.x.daily;
+  if (d.last === today()) return;
+  d.day = d.last === yesterday() ? (d.day % 7) + 1 : 1; d.last = today();
+  const r = DAILY[d.day - 1];
+  state.tokens += r; addLog(`Ежедневная награда: +${fmt(r)}`); sfx('coin'); renderAll(); writeSave(); openRewards();
+}
+function openPrestige() {
+  const p = state.x.prestige, ok = state.tokens >= 5e6;
+  openModal(`<div class="section-title">Престиж</div>
+    <div class="event-text">Продай бизнес и начни заново. Токены, заводы, дома, машины и одежда сбросятся, а доход вырастет на 10% навсегда (максимум +50%). Сейчас престижей: ${p}.</div>
+    <button class="key" data-act="prestige-go" ${ok ? '' : 'disabled'}>${ok ? 'Продать бизнес' : 'Нужно 5 000 000 токенов'}</button>
+    <button class="key" data-act="close">Отмена</button>`);
+}
+function doPrestige() {
+  if (state.tokens < 5e6) return;
+  state.x.prestige++;
+  Object.assign(state, { tokens: 0, factories: [], houseId: null, cars: [], clothes: ['tracksuit'], worn: 'tracksuit' });
+  addLog(`Престиж ${state.x.prestige}: доход +${Math.min(state.x.prestige, 5) * 10}%`);
+  writeSave(); renderAll(); closeModal();
+}
+
+// ----- События на заводах -----
+const EVENTS = [
+  { t: 'Проверка', d: n => `На «${n}» нагрянула проверка и намекает на «подарок».`,
+    a: ['Дать подарок', () => { const l = Math.min(state.tokens, Math.max(500, Math.floor(state.tokens * 0.03))); state.tokens -= l; return `Проверка ушла довольной. Подарок обошёлся в ${fmt(l)} токенов.`; }],
+    b: ['Отказаться', () => { if (Math.random() < 0.5) { const l = Math.floor(state.tokens * 0.1); state.tokens -= l; return `Не повезло: штраф ${fmt(l)} токенов.`; } return 'Проверяющий вздохнул и уехал. Повезло.'; }] },
+  { t: 'Поломка', d: n => `На «${n}» встал главный станок.`,
+    a: ['Вызвать мастера', () => { const l = Math.min(state.tokens, 5000); state.tokens -= l; return `Мастер починил за ${fmt(l)} токенов.`; }],
+    b: ['Починить самим', () => { if (Math.random() < 0.5) return 'Починили скотчем. Работает, никто не знает как.'; const l = Math.min(state.tokens, 15000); state.tokens -= l; return `Не вышло. Простой обошёлся в ${fmt(l)} токенов.`; }] },
+  { t: 'Забастовка', d: n => `Рабочие «${n}» требуют повышения и поют песни.`,
+    a: ['Поднять зарплату', () => { const l = Math.min(state.tokens, 2000); state.tokens -= l; return `Рабочие довольны. Повышение стоило ${fmt(l)} токенов.`; }],
+    b: ['Игнорировать', () => { if (Math.random() < 0.5 && loseEmployee({ worker: 1 })) return 'Рабочий хлопнул дверью и ушёл.'; return 'Забастовка закончилась сама. Обед важнее.'; }] },
+];
+let curEvent = null;
+function maybeEvent() {
+  const x = state.x;
+  if (!x.nextEventAt) x.nextEventAt = Date.now() + rand(2, 4) * 864e5;
+  if (Date.now() < x.nextEventAt || !state.factories.length || !modalEl.classList.contains('hidden')) return;
+  x.nextEventAt = Date.now() + rand(2, 4) * 864e5;
+  const f = state.factories[rint(0, state.factories.length - 1)], e = EVENTS[rint(0, EVENTS.length - 1)];
+  curEvent = { e, f };
+  openModal(`<div class="section-title">${e.t}</div><div class="event-text">${e.d(factoryName(f.typeId))}</div>
+    <button class="key" data-act="event-pick" data-id="0">${e.a[0]}</button>
+    <button class="key" data-act="event-pick" data-id="1">${e.b[0]}</button>`);
+}
+function eventPick(i) {
+  if (!curEvent) return;
+  const { e } = curEvent, res = (i ? e.b : e.a)[1]();
+  curEvent = null;
+  addLog(res); renderAll(); writeSave(); openEvent(e.t, res);
+}
+
+// ----- Защита и новые кнопки -----
+function renderExtra() {
+  renderGarageCars();
+  const x = state.x, g = document.getElementById('guardList');
+  if (!g) return;
+  g.innerHTML =
+    card('Охранники', `${x.guards} из 5 · содержание 100 в час за каждого. Защищают от рейдов, при поражении один гибнет.`,
+      `<div class="row"><button class="key" data-act="buy-guard" ${x.guards >= 5 ? 'disabled' : ''}>Нанять · ${fmt(15000)}</button></div>`) +
+    card('Юрист', 'Налоговая приходит на 70% реже.',
+      `<div class="row"><button class="key" data-act="buy-lawyer" ${x.lawyer ? 'disabled' : ''}>${x.lawyer ? 'Нанят' : 'Нанять · ' + fmt(80000)}</button></div>`);
+}
+function extraAct(act, id, role) {
+  const x = state.x;
+  switch (act) {
+    case 'drink': barPick(id); return true;
+    case 'paint': x.colors[id] = role; sfx('ok'); renderAll(); writeSave(); return true;
+    case 'stage': {
+      const car = CARS.find(k => k.id === id), st = x.stages[id] || 0;
+      if (car && st < 3 && spend(STAGE_COST[st])) { x.stages[id] = st + 1; addLog(`${car.name}: Stage ${st + 1}`); sfx('buy'); renderAll(); writeSave(); }
+      return true;
+    }
+    case 'race': openRace(id); return true;
+    case 'race-go': startRace(id, +role); return true;
+    case 'courier': startCourier(); return true;
+    case 'buy-guard':
+      if (x.guards >= 5) showToast('Максимум 5 охранников');
+      else if (spend(15000)) { x.guards++; addLog('Нанят охранник'); sfx('buy'); renderAll(); }
+      return true;
+    case 'buy-lawyer':
+      if (!x.lawyer && spend(80000)) { x.lawyer = true; addLog('Нанят юрист'); sfx('buy'); renderAll(); }
+      return true;
+    case 'rewards': openRewards(); return true;
+    case 'claim-daily': claimDaily(); return true;
+    case 'prestige': openPrestige(); return true;
+    case 'prestige-go': doPrestige(); return true;
+    case 'event-pick': eventPick(+id); return true;
+  }
+  return false;
+}
+
+// ---------- Версия 4: гараж, цвета, стейджи, дрэг-гонка ----------
+const PAINTS = ['#2E3A46', '#C9CFD6', '#1E4A7A', '#EDE7D9', '#D0453A', '#3E7A46', '#E0B040', '#7A3B8A'];
+const STAGE_COST = [250000, 500000, 1000000];
+const carColor = c => (state.x.colors && state.x.colors[c.id]) || c.body;
+const carStage = c => (state.x.stages && state.x.stages[c.id]) || 0;
+
+function renderGarageCars() {
+  const el = document.getElementById('garageCars');
+  if (!el) return;
+  const owned = CARS.filter(c => state.cars.includes(c.id));
+  el.innerHTML = owned.length ? owned.map(c => {
+    const st = carStage(c);
+    const sw = PAINTS.map(h => `<button class="swatch" style="background:${h}" data-act="paint" data-id="${c.id}" data-role="${h}" aria-label="Покрасить"></button>`).join('');
+    const next = st < 3
+      ? `<button class="key" data-act="stage" data-id="${c.id}">Stage ${st + 1} · ${fmt(STAGE_COST[st])}</button>`
+      : '<button class="key" disabled>Stage 3 · максимум</button>';
+    return card(c.name, `Stage ${st} из 3 · мощность ${100 + st * 25}%`,
+      `<div class="row">${sw}</div><div class="row">${next}<button class="key" data-act="race" data-id="${c.id}">Дрэг-гонка</button></div>`);
+  }).join('') : '<div class="card-sub">Машин пока нет. Купи дом и машину в магазине.</div>';
+}
+
+// ----- Дрэг-гонка -----
+const race = { on: false, timer: null };
+function openRace(id) {
+  const car = CARS.find(c => c.id === id);
+  if (!car) return;
+  const left = (state.x.raceAt || 0) - Date.now();
+  if (left > 0) return showToast(`Следующая гонка через ${Math.ceil(left / 1000)} с`);
+  openModal(`<div class="section-title">Дрэг-гонка</div>
+    <div class="event-text">${car.name}, Stage ${carStage(car)}. Выиграешь, получишь ставку вдвое больше. Проиграешь, ставка пропадёт. Жми «Газ» и переключай передачу, когда стрелка в зелёной зоне.</div>
+    ${[50, 100, 200].map(s => `<button class="key" data-act="race-go" data-id="${id}" data-role="${s}" ${state.tokens < s ? 'disabled' : ''}>Ставка ${fmt(s)}</button>`).join('')}
+    <button class="key" data-act="close">Отмена</button>`);
+}
+function startRace(id, stake) {
+  const car = CARS.find(c => c.id === id);
+  if (!car || race.on || !spend(stake)) return;
+  tokensEl.textContent = fmt(state.tokens);
+  Object.assign(race, { on: true, car, stake, power: 1 + 0.25 * carStage(car), d: 0, o: 0, rpm: 0.3, gear: 1, t: 0, ot: rand(17, 23) });
+  openModal(`<div class="section-title">Старт!</div>
+    <canvas id="raceCv" width="320" height="150" style="width:100%;height:auto;image-rendering:pixelated;border:3px solid var(--ink)"></canvas>
+    <div class="row"><button class="key" id="gasBtn" style="width:48%;height:72px;font-size:22px">Газ</button><button class="key" id="shiftBtn" style="width:48%;height:72px;font-size:22px">Передача</button></div>`);
+  document.getElementById('gasBtn').addEventListener('pointerdown', () => { if (race.on) { race.rpm = Math.min(1.05, race.rpm + 0.09); haptic('impact'); } });
+  document.getElementById('shiftBtn').addEventListener('pointerdown', () => {
+    if (!race.on) return;
+    if (race.rpm >= 0.72 && race.rpm <= 0.92 && race.gear < 4) { race.gear++; race.rpm = 0.5; sfx('ok'); }
+    else { race.rpm = 0.2; sfx('loss'); }
+  });
+  drawRace();
+  clearInterval(race.timer);
+  race.timer = setInterval(raceTick, 50);
+}
+function raceTick() {
+  const r = race;
+  if (!r.on) return;
+  r.t += 0.05;
+  r.rpm = Math.max(0, r.rpm - 0.015);
+  const v = (0.5 + r.gear * 0.25) * Math.min(r.rpm, 1) * r.power * 77 * (r.rpm > 1 ? 0.4 : 1);
+  r.d += v * 0.05; r.o += (1000 / r.ot) * 0.05;
+  if (!drawRace()) { r.on = false; clearInterval(r.timer); state.tokens += r.stake; renderAll(); return; }
+  if (r.d >= 1000 || r.o >= 1000 || r.t > 25) endRace(r.d >= r.o);
+}
+function endRace(win) {
+  race.on = false; clearInterval(race.timer);
+  state.x.raceAt = Date.now() + 60000;
+  const s = race.stake;
+  if (win) { state.tokens += s * 2; state.x.races = (state.x.races || 0) + 1; addLog(`Дрэг-гонка выиграна: +${fmt(s)}`); sfx('coin'); }
+  else { addLog(`Дрэг-гонка проиграна: −${fmt(s)}`); sfx('loss'); }
+  renderAll(); writeSave();
+  openModal(`<div class="section-title">${win ? 'Победа' : 'Поражение'}</div>
+    <div class="event-text">${win ? `Обогнал соперника. Выигрыш ${fmt(s)}, на счёт вернулось ${fmt(s * 2)} токенов.` : `Соперник оказался быстрее. Ставка ${fmt(s)} токенов пропала.`}</div>
+    <button class="key" data-act="close">Понятно</button>`);
+}
+function drawRace() {
+  const cv = document.getElementById('raceCv');
+  if (!cv) return false;
+  const c = cv.getContext('2d'), r = race, opp = { id: 'opp', style: 'sedan', body: '#8A8478' };
+  R(c, 0, 0, 320, 150, '#1B1830'); R(c, 0, 0, 320, 110, '#2B2D3A'); R(c, 0, 0, 320, 4, '#7A7F86'); R(c, 0, 106, 320, 4, '#7A7F86');
+  for (let x = -((r.t * 160) % 40); x < 320; x += 40) R(c, x, 53, 22, 3, '#F2C14E');
+  for (let y = 4; y < 106; y += 10) R(c, 296, y, 5, 5, y % 20 < 10 ? '#F6EEDB' : '#14101C');
+  drawCar(c, r.car, 4 + r.d * 0.19, 4);
+  drawCar(c, opp, 4 + r.o * 0.19, 60);
+  R(c, 10, 130, 300, 12, '#14101C'); R(c, 10 + 300 * 0.72, 130, 300 * 0.2, 12, '#4FA89A');
+  R(c, 10, 130, 300 * Math.min(1, r.rpm), 12, r.rpm > 1 ? '#D0453A' : '#F2A23A');
+  R(c, 10 + 300 * Math.min(1, r.rpm) - 1, 126, 3, 20, '#F6EEDB');
+  c.fillStyle = '#F6EEDB'; c.font = '16px "Pixelify Sans", sans-serif';
+  c.fillText(`Передача ${r.gear} · ${Math.max(0, 25 - r.t).toFixed(0)} с`, 10, 122);
+  flushLights(c, 'car', 320, 150);
+  return true;
+}
+
+// ---------- Запуск ----------
+async function init() {
+  startPhase('bull');
+  for (let i = 0; i < SERIES_MAX; i++) addCandle();
+
+  const raw = await loadSave();
+  let hoursAway = 0;
+  if (raw) {
+    try {
+      applySaved(JSON.parse(raw));
+      hoursAway = applyOffline();
+    } catch (e) { /* битое сохранение игнорируем */ }
+  }
+  if (!state.nextAttackAt) scheduleNextAttack();
+
+  renderAll();
+
+  setInterval(() => {
+    trend.timeLeft -= 0.1;
+    if (trend.timeLeft <= 0) startPhase(trend.phase === 'bull' ? 'bear' : 'bull');
+  }, 100);
+  setInterval(addCandle, CONFIG.candleEveryMs);
+  setInterval(paintAll, 120);
+  setInterval(writeSave, CONFIG.saveEveryMs);
+  setInterval(checkAttack, CONFIG.attackCheckMs);
+  setInterval(barTick, 300);
+  setInterval(() => { checkAch(); maybeEvent(); }, 2000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) writeSave();
+  });
+  window.addEventListener('pagehide', writeSave);
+
+  if (hoursAway >= CONFIG.offlineCapHours) {
+    setTimeout(() => triggerAttack(), 600);
+  } else if (state.nextAttackAt <= Date.now()) {
+    setTimeout(() => triggerAttack(), 600);
+  }
+  paintAll();
+}
+
+init();
+})();
+</script>
+</body>
+</html>
